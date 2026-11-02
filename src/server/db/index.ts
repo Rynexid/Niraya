@@ -1,7 +1,8 @@
+import { env } from "@/lib/env";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = env.DATABASE_URL;
 
 if (!connectionString) {
   // During build time without env vars, create a dummy db instance
