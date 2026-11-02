@@ -1,38 +1,60 @@
-"use client"
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 
-import { Moon, Sun } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
+import { useTheme } from '@/components/theme-provider'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useTheme } from "@/components/themeprovider"
+} from '@/components/ui/dropdown-menu'
 
+const themeOptions = [
+  { value: 'light', label: 'Light', icon: SunIcon },
+  { value: 'dark', label: 'Dark', icon: MoonIcon },
+  { value: 'system', label: 'System', icon: MonitorIcon },
+] as const
+
+/**
+ * Theme switcher. The preference is persisted under the `niraya-theme` key;
+ * an inline script in `index.html` applies it before paint.
+ */
 export function ThemeToggle() {
-  const { setTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
-          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
+        <Button variant="ghost" size="icon" aria-label="Change theme">
+          <SunIcon aria-hidden="true" className="size-4 dark:hidden" />
+          <MoonIcon
+            aria-hidden="true"
+            className="hidden size-4 dark:block"
+          />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+          {themeOptions.map((option) => {
+            const Icon = option.icon
+
+            return (
+              <DropdownMenuRadioItem
+                key={option.value}
+                value={option.value}
+                className="gap-2"
+              >
+                <Icon aria-hidden="true" />
+                {option.label}
+              </DropdownMenuRadioItem>
+            )
+          })}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

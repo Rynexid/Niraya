@@ -1,8 +1,5 @@
+import { CategoriesPage } from "@/features/categories/categories-page";
+
 export default function Page() {
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold">CATEGORIES</h1>
-      <p className="text-muted-foreground">Phase 1 placeholder</p>
-    </div>
-  );
+  return <CategoriesPage />;
 }
