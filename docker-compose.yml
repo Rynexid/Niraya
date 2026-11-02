@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: niraya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: niraya
+      POSTGRES_PASSWORD: niraya
+      POSTGRES_DB: niraya
+    ports:
+      - "5432:5432"
+    volumes:
+      - niraya_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U niraya -d niraya"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: niraya-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://niraya:niraya@postgres:5432/niraya
+      BETTER_AUTH_SECRET: change-me-in-production
+      BETTER_AUTH_URL: http://localhost:4000
+      CORS_ORIGIN: http://localhost:8080
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: niraya-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  niraya_pg_data:
