@@ -20,7 +20,7 @@ app.get("/health", (c) => {
   return c.json({ status: "ok", service: "niraya-api" });
 });
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => {
+app.all("/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
 
@@ -35,5 +35,3 @@ serve(
     console.log(`Niraya API running on http://localhost:${info.port}`);
   }
 );
-
-export default app;

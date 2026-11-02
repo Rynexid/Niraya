@@ -60,3 +60,4 @@ dist/
 
 # Server build output
 server/dist/
+.neon
