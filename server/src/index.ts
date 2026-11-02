@@ -8,7 +8,7 @@ const app = new Hono();
 app.use(
   "*",
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: Bun.env.CORS_ORIGIN || "http://localhost:5173",
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     credentials: true,
@@ -23,7 +23,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
 
-const port = Number(process.env.PORT) || 4000;
+const port = Number(Bun.env.PORT) || 4000;
 
 serve(
   {
