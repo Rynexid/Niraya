@@ -1,6 +1,6 @@
 "use client"
 
-import { Link } from "react-router-dom"
+import Link from 'next/link'
 import { User, Mail, Building, ShieldCheck, Clock } from "lucide-react"
 
 export function ProfilePage() {
@@ -8,7 +8,7 @@ export function ProfilePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Profil</h1>
-        <Link to="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
           ← Kembali ke Dashboard
         </Link>
       </div>

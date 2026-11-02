@@ -1,3 +1,5 @@
+"use client";
+
 import { SearchXIcon } from 'lucide-react'
 
 import { formatNumber } from '@/lib/format'

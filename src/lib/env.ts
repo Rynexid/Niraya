@@ -1,23 +1,23 @@
-import { z } from 'zod'
+import { z } from "zod";
 
-/**
- * Only variables prefixed with `VITE_` are exposed to the browser.
- * Never add database URLs, API secrets or auth secrets here.
- */
 const envSchema = z.object({
-  VITE_API_URL: z
-    .union([z.literal(''), z.url({ error: 'VITE_API_URL must be a valid URL' })])
-    .default(''),
-  VITE_APP_NAME: z.string().min(1).default('Niraya POS'),
-})
+  DATABASE_URL: z.string().min(1).optional().default("postgres://dummy:dummy@localhost:5432/dummy"),
+  NEON_AUTH_BASE_URL: z.string().min(1).optional().default(""),
+  NEON_AUTH_COOKIE_SECRET: z.string().min(32).optional().default("dev-secret-change-me-32-chars-long!!"),
+  NEON_AUTH_JWKS_URL: z.string().min(1).optional().default(""),
+  NEXT_PUBLIC_NEON_AUTH_URL: z.string().min(1).optional().default(""),
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+});
 
 export const env = envSchema.parse({
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  VITE_APP_NAME: import.meta.env.VITE_APP_NAME,
-})
+  DATABASE_URL: process.env.DATABASE_URL,
+  NEON_AUTH_BASE_URL: process.env.NEON_AUTH_BASE_URL,
+  NEON_AUTH_COOKIE_SECRET: process.env.NEON_AUTH_COOKIE_SECRET,
+  NEON_AUTH_JWKS_URL: process.env.NEON_AUTH_JWKS_URL,
+  NEXT_PUBLIC_NEON_AUTH_URL: process.env.NEXT_PUBLIC_NEON_AUTH_URL,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NODE_ENV: process.env.NODE_ENV,
+});
 
-/**
- * Base URL for API calls. An empty value means "same origin", which is the
- * recommended production setup (frontend and API behind one reverse proxy).
- */
-export const apiBaseUrl = env.VITE_API_URL.replace(/\/$/, '')
+export type Env = z.infer<typeof envSchema>;

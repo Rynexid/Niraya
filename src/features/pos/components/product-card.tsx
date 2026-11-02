@@ -1,3 +1,5 @@
+"use client";
+
 import { BanIcon, PlusIcon } from 'lucide-react'
 
 import { ProductPrice } from '@/components/pos/product-price'

@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import {
@@ -108,6 +110,7 @@ export type CheckoutDialogProps = {
    * success screen and printed receipt match the transactions table.
    */
   onComplete: (sale: CompletedSale) => string
+  onSuccess?: (serverReceipt: any) => void
 }
 
 /**
@@ -132,6 +135,13 @@ type CheckoutBodyProps = Omit<CheckoutDialogProps, 'open' | 'onOpenChange'> & {
   onClose: () => void
 }
 
+function generateIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function CheckoutBody({
   orderId,
   lines,
@@ -145,6 +155,7 @@ function CheckoutBody({
   settings,
   onTableNumberChange,
   onComplete,
+  onSuccess,
   onClose,
 }: CheckoutBodyProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash')
@@ -153,6 +164,7 @@ function CheckoutBody({
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null)
   const timerRef = useRef<number | null>(null)
+  const idempotencyKeyRef = useRef<string>(generateIdempotencyKey())
 
   const cashValue = Number(cashInput || 0)
   const busy = status !== 'idle'
@@ -203,7 +215,7 @@ function CheckoutBody({
     }
   }, [method, status, qrisPayload])
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (busy) return
 
     if (tableMissing) {
@@ -252,17 +264,40 @@ function CheckoutBody({
 
     setStatus('processing')
 
-    timerRef.current = window.setTimeout(() => {
+    try {
+      const payload = {
+        idempotencyKey: idempotencyKeyRef.current,
+        items: lines.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        })),
+        paymentMethod: method,
+        paymentAmount: method === 'cash' ? cashValue : totals.total,
+      }
+
+      const res = await fetch('/api/pos/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Checkout failed')
+      }
+
+      const serverResult = await res.json()
+
       const storedNumber = onComplete(sale)
 
       setReceipt({
-        orderId: storedNumber,
+        orderId: serverResult.transactionNumber || storedNumber,
         lines,
         totals,
         method,
-        cashReceived,
-        change,
-        paidAt,
+        cashReceived: serverResult.amountPaid ?? cashReceived,
+        change: serverResult.changeAmount ?? change,
+        paidAt: new Date(serverResult.createdAt || paidAt),
         orderType,
         tableNumber,
         customerName,
@@ -271,10 +306,16 @@ function CheckoutBody({
         receiptFooter: settings.receiptFooter,
       })
       setStatus('success')
+      if (onSuccess) onSuccess(serverResult)
       toast.success('Pembayaran berhasil', {
-        description: `${formatNumber(itemCount)} item • ${formatCurrency(totals.total)}`,
+        description: `${formatNumber(itemCount)} item • ${formatCurrency(serverResult.total ?? totals.total)}`,
       })
-    }, 900)
+    } catch (error: any) {
+      setStatus('idle')
+      toast.error('Pembayaran gagal', {
+        description: error.message || 'Terjadi kesalahan saat checkout',
+      })
+    }
   }
 
   const handlePrintReceipt = () => {

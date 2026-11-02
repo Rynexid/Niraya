@@ -1,3 +1,5 @@
+"use client";
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   CheckCircle2Icon,
@@ -9,7 +11,8 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -56,13 +59,13 @@ const FEATURES = [
 export function LoginPage() {
   const session = useDemoAuthStore((state) => state.session)
   const signIn = useDemoAuthStore((state) => state.signIn)
-  const navigate = useNavigate()
-  const location = useLocation()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
 
-  const from = (location.state as { from?: unknown } | null)?.from
+  const from = searchParams.get('from')
   const redirectTo =
-    typeof from === 'string' && from.startsWith('/') && from !== '/login'
+    from && from.startsWith('/') && from !== '/login'
       ? from
       : '/dashboard'
 
@@ -75,7 +78,7 @@ export function LoginPage() {
   })
 
   if (session) {
-    return <Navigate to={redirectTo} replace />
+    return null
   }
 
   const fillDemoAccount = () => {
@@ -102,7 +105,7 @@ export function LoginPage() {
     toast.success('Berhasil masuk', {
       description: `Selamat datang, ${DEMO_ACCOUNT.name}.`,
     })
-    navigate(redirectTo, { replace: true })
+    router.push(redirectTo)
   }
 
   return (

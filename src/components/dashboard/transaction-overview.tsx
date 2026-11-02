@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Label, Pie, PieChart } from 'recharts'
 import { ExternalLinkIcon, PieChartIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import Link from 'next/link'
 
 import { EmptyState } from '@/components/shared/empty-state'
 import { Button } from '@/components/ui/button'
@@ -63,7 +63,7 @@ export function TransactionOverview({ stats }: { stats: TransactionStat[] }) {
           </p>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
-          <Link to="/transactions">
+          <Link href="/transactions">
             <ExternalLinkIcon aria-hidden="true" className="mr-1 size-3.5" />
             View all
           </Link>

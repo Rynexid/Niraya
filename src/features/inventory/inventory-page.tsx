@@ -1,5 +1,7 @@
+"use client";
+
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'next/navigation'
 import {
   AlertTriangleIcon,
   BoxesIcon,
@@ -56,7 +58,7 @@ const MOVEMENT_FILTERS = [
 
 export function InventoryPage() {
   const { products, categories, movements, adjustStock } = useBusinessStore()
-  const [searchParams] = useSearchParams()
+  const searchParams = useSearchParams()
 
   const [tab, setTab] = useState('stock')
   const [search, setSearch] = useState('')
@@ -67,7 +69,7 @@ export function InventoryPage() {
   const [historyProduct, setHistoryProduct] = useState('all')
   const [historyType, setHistoryType] = useState('all')
 
-  const initialProduct = searchParams.get('product') ?? undefined
+  const initialProduct = searchParams?.get('product') ?? undefined
   const [adjustProductId, setAdjustProductId] = useState<string | undefined>(
     initialProduct,
   )

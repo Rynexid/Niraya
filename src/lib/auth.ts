@@ -1,12 +1,16 @@
-import { betterAuth } from "better-auth";
-import { Pool } from "pg";
+import { auth } from "@/server/auth";
+import { headers } from "next/headers";
 
-const database = new Pool({
-  connectionString: "postgresql://postgres:password@localhost:5432/database",
-});
+export async function getSession() {
+  try {
+    const session = await auth.getSession({ headers: await headers() } as any);
+    return session;
+  } catch {
+    return null;
+  }
+}
 
-export const auth = betterAuth({
-  database: database,
-  baseURL: "http://localhost:3000/",
-  emailAndPassword: { enabled: true },
-});
+export async function getUser() {
+  const session = await getSession();
+  return (session as any)?.data?.user || (session as any)?.user || null;
+}

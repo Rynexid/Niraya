@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState } from 'react'
 import { CheckIcon, SearchXIcon, UserRoundIcon, UsersIcon } from 'lucide-react'
 

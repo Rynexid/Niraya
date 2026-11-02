@@ -1,31 +1,32 @@
-import { Separator } from '@/components/ui/separator'
-import { SidebarTrigger } from '@/components/ui/sidebar'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { ThemeToggle } from '@/components/shared/theme-toggle'
+"use client"
 
-export function AppHeader() {
+import { Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/shared/theme-toggle"
+import { AppBreadcrumb } from "@/components/layout/app-breadcrumb"
+import { cn } from "@/lib/utils"
+
+export function AppHeader({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: (next: boolean) => void
+}) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 px-4">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 h-4" />
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem className="hidden md:block">
-            <BreadcrumbLink href="/">Niraya</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator className="hidden md:block" />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Dashboard</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
+        onClick={() => onToggle(!collapsed)}
+        aria-label="Toggle sidebar"
+      >
+        <Menu className="size-5" />
+      </Button>
+      <div className={cn("flex items-center", collapsed ? "md:ml-0" : "")}>
+        <AppBreadcrumb />
+      </div>
       <div className="ml-auto flex items-center gap-2">
         <ThemeToggle />
       </div>

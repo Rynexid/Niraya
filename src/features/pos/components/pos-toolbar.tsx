@@ -1,3 +1,5 @@
+"use client";
+
 import type { Ref } from 'react'
 import { BarcodeIcon, ScanLineIcon, SearchIcon, WalletIcon } from 'lucide-react'
 

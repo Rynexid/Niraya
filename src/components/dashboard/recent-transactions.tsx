@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, ReceiptTextIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import Link from 'next/link'
 
 import { EmptyState } from '@/components/shared/empty-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -32,7 +32,7 @@ export function RecentTransactions({
           </p>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
-          <Link to="/transactions">
+          <Link href="/transactions">
             <ExternalLinkIcon aria-hidden="true" className="mr-1 size-3.5" />
             View all
           </Link>

@@ -1,4 +1,6 @@
-import { useNavigate } from 'react-router-dom'
+"use client";
+
+import { useRouter } from 'next/navigation'
 import {
   ArchiveIcon,
   ArrowUpRightIcon,
@@ -42,7 +44,7 @@ export function ProductDetailSheet({
   onOpenChange: (open: boolean) => void
   onEdit: (product: Product) => void
 }) {
-  const navigate = useNavigate()
+  const router = useRouter()
   const category = categories.find((item) => item.id === product?.categoryId)
   const sales = product
     ? getProductSales(transactions, product.id)
@@ -171,7 +173,7 @@ export function ProductDetailSheet({
             <SheetFooter className="border-t">
               <Button
                 variant="outline"
-                onClick={() => navigate(`/inventory?product=${product.id}`)}
+                onClick={() => router.push(`/inventory?product=${product.id}`)}
               >
                 <BoxesIcon aria-hidden="true" />
                 Sesuaikan stok

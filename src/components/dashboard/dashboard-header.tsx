@@ -1,5 +1,5 @@
 import { BarChart3Icon, ShoppingBagIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import Link from 'next/link'
 
 import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { PageHeader } from '@/components/shared/page-header'
@@ -18,13 +18,13 @@ export function DashboardHeader() {
       actions={
         <>
           <Button variant="outline" asChild>
-            <Link to="/reports">
+            <Link href="/reports">
               <BarChart3Icon aria-hidden="true" />
               Laporan
             </Link>
           </Button>
           <Button asChild>
-            <Link to="/pos">
+            <Link href="/pos">
               <ShoppingBagIcon aria-hidden="true" />
               Buka POS
             </Link>

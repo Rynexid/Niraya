@@ -1,6 +1,8 @@
+"use client"
+
 import { useMemo } from 'react'
 import { TriangleAlertIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import Link from 'next/link'
 
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
 import { MetricCard } from '@/components/dashboard/metric-card'
@@ -91,7 +93,7 @@ export function DashboardPage() {
             </div>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/inventory">Buka inventori</Link>
+            <Link href="/inventory">Buka inventori</Link>
           </Button>
         </section>
       ) : null}

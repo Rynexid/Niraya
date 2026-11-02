@@ -1,5 +1,5 @@
-import { createAuthClient } from "better-auth/react";
+"use client";
 
-export const authClient = createAuthClient({
-  baseURL: import.meta.env.VITE_API_URL || "https://nirayabe.vercel.app",
-});
+import { createAuthClient } from "@neon/auth";
+
+export const authClient = createAuthClient("" as any);

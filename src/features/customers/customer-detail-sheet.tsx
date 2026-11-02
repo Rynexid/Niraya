@@ -1,3 +1,5 @@
+"use client";
+
 import { CalendarIcon, MailIcon, PencilIcon, PhoneIcon, StickyNoteIcon } from 'lucide-react'
 
 import { StatusBadge } from '@/components/shared/status-badge'
