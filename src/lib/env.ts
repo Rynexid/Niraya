@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().min(1),
-  NEON_AUTH_BASE_URL: z.string().min(1),
-  NEON_AUTH_COOKIE_SECRET: z.string().min(32),
-  NEON_AUTH_JWKS_URL: z.string().min(1),
-  NEXT_PUBLIC_NEON_AUTH_URL: z.string().min(1),
+  DATABASE_URL: z.string().min(1).optional().default("postgres://dummy:dummy@localhost:5432/dummy"),
+  NEON_AUTH_BASE_URL: z.string().min(1).optional().default(""),
+  NEON_AUTH_COOKIE_SECRET: z.string().min(32).optional().default("dev-secret-change-me-32-chars-long!!"),
+  NEON_AUTH_JWKS_URL: z.string().min(1).optional().default(""),
+  NEXT_PUBLIC_NEON_AUTH_URL: z.string().min(1).optional().default(""),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
