@@ -7,7 +7,7 @@ export const healthRoutes = new Hono()
   .get('/', (c) =>
     c.json({
       status: 'ok',
-      uptime: Math.round(process.uptime()),
+      uptime: Math.round((globalThis as { uptime?: () => number }).uptime?.() ?? 0),
       timestamp: new Date().toISOString(),
     }),
   )
