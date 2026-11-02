@@ -22,7 +22,8 @@ export const metadata: Metadata = {
       { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: [{ url: "/favicon/apple-touch-icon.png" }],
+    shortcut: "/favicon/favicon.ico",
+    apple: [{ url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   manifest: "/favicon/site.webmanifest",
 };
@@ -34,6 +35,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon/favicon-16x16.png" type="image/png" sizes="16x16" />
+        <link rel="icon" href="/favicon/favicon-32x32.png" type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png" />
+        <link rel="manifest" href="/favicon/site.webmanifest" />
+      </head>
       <body
         className={`${plusJakartaSans.variable} ${jetBrainsMono.variable} antialiased`}
       >
