@@ -234,17 +234,24 @@ export function AppSidebar({
   )
 
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-20 flex h-svh flex-col justify-between overflow-hidden",
-        "transition-all duration-200 ease-in-out",
-        className ? "" : "hidden md:flex",
-        collapsed ? "w-[68px]" : "w-[260px]",
-        className ?? "",
-        "border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm print:hidden"
+    <>
+      {!collapsed && (
+        <button
+          className="fixed inset-0 z-10 bg-black/40 md:hidden"
+          onClick={() => onToggle?.(true)}
+          aria-label="Close sidebar"
+        />
       )}
-      aria-label="Main navigation"
-    >
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex h-svh flex-col justify-between overflow-hidden",
+          "transition-all duration-200 ease-in-out",
+          collapsed ? "-translate-x-full md:translate-x-0 md:w-[68px]" : "translate-x-0 w-[280px] max-w-[85vw] md:w-[260px]",
+          "border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm print:hidden",
+          className ?? ""
+        )}
+        aria-label="Main navigation"
+      >
       <div className="shrink-0 p-3">{brandContent}</div>
 
       <nav
@@ -260,5 +267,6 @@ export function AppSidebar({
         {footerContent}
       </footer>
     </aside>
+    </>
   )
 }

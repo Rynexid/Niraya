@@ -24,7 +24,7 @@ export function AppHeader({
       >
         <Menu className="size-5" />
       </Button>
-      <div className={cn("hidden md:block", collapsed ? "md:ml-0" : "")}>
+      <div className={cn("flex items-center", collapsed ? "md:ml-0" : "")}>
         <AppBreadcrumb />
       </div>
       <div className="ml-auto flex items-center gap-2">

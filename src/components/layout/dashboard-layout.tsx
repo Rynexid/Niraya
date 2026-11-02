@@ -18,7 +18,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         )}
       >
         <AppHeader collapsed={collapsed} onToggle={setCollapsed} />
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">{children}</main>
       </div>
     </div>
   )
