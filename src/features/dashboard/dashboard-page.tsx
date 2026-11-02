@@ -1,3 +1,5 @@
+"use client"
+
 import { useMemo } from 'react'
 import { TriangleAlertIcon } from 'lucide-react'
 import Link from 'next/link'

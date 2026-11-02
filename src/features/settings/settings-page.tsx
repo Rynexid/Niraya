@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { DemoDataBadge } from '@/components/shared/demo-data-badge'
-import { useTheme } from '@/components/theme-provider'
+import { useTheme } from '@/components/themeprovider'
 import { PageHeader } from '@/components/shared/page-header'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'

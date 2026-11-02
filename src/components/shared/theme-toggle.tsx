@@ -1,6 +1,6 @@
 import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 
-import { useTheme } from '@/components/theme-provider'
+import { useTheme } from '@/components/themeprovider'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
