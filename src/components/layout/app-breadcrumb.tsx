@@ -40,7 +40,6 @@ const labels: Record<string, string> = {
 
 function formatLabel(segment: string) {
   if (labels[segment]) return labels[segment]
-  // Handle IDs or slugs
   if (/^[0-9a-f-]{8,}$/i.test(segment)) return "Detail"
   return segment
     .replace(/-/g, " ")
@@ -60,9 +59,7 @@ export function AppBreadcrumb() {
     return { segment, href, isLast, label }
   })
 
-  // Collapse if more than 3 items
   const shouldCollapse = items.length > 3
-  let visibleItems = items
   if (shouldCollapse) {
     const first = items[0]
     const last = items[items.length - 1]
@@ -105,7 +102,7 @@ export function AppBreadcrumb() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        {items.map((item, index) => (
+        {items.map((item) => (
           <Fragment key={item.href}>
             <BreadcrumbItem>
               {item.isLast ? (
