@@ -11,7 +11,7 @@ import { CustomerPickerDialog as CustomerPicker } from '../components/customer-p
 import { ProductCatalog } from '../components/product-catalog'
 import { PosToolbar } from '../components/pos-toolbar'
 import { usePosCart } from '../hooks/use-pos-cart'
-import { buildPosTotals } from '../lib/pricing'
+import { computeTotals } from '../lib/pricing'
 import { createOrderId } from '../lib/order'
 import type { PosOrderType } from '../lib/order'
 
@@ -93,9 +93,7 @@ export default function PosPage() {
 
   const totals = useMemo(
     () =>
-      buildPosTotals({
-        subtotal: cart.subtotal,
-        member: effectiveMember,
+      computeTotals(cart.subtotal, effectiveMember, {
         memberDiscountRate: 0.1,
         taxRate: 0.1,
       }),
