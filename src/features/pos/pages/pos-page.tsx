@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { useBusinessStore } from '@/stores/business-store'
 import { CartPanel } from '../components/cart-panel'
 import { CheckoutDialog } from '../components/checkout-dialog'
-import { CustomerPickerDialog as CustomerPicker } from '../components/customer-picker-dialog'
+import { CustomerPickerDialog } from '../components/customer-picker-dialog'
 import { ProductCatalog } from '../components/product-catalog'
 import { PosToolbar } from '../components/pos-toolbar'
 import { usePosCart } from '../hooks/use-pos-cart'
@@ -21,6 +21,7 @@ export default function PosPage() {
   const categories = useBusinessStore((state) => state.categories)
   const customers = useBusinessStore((state) => state.customers)
   const settings = useBusinessStore((state) => state.settings)
+  const transactions = useBusinessStore((state) => state.transactions)
   const completeSale = useBusinessStore((state) => state.completeSale)
   const cart = usePosCart(products)
   const [search, setSearch] = useState('')
@@ -76,6 +77,17 @@ export default function PosPage() {
           imageUrl: product.imageUrl,
         })),
     [products],
+  )
+
+  const posCategories = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: cat.id,
+        label: cat.name,
+        icon: undefined,
+        count: posProducts.filter((p) => p.categoryId === cat.id).length,
+      })),
+    [categories, posProducts],
   )
 
   const customerMap = useMemo(() => {
@@ -154,10 +166,10 @@ export default function PosPage() {
           />
           <ProductCatalog
             products={filteredProducts}
-            categories={categories}
-            activeCategoryId={categoryId}
+            categories={posCategories as any}
+            activeCategory={categoryId}
+            quantities={quantityByProductId}
             onCategoryChange={setCategoryId}
-            quantityByProductId={quantityByProductId}
             onAdd={cart.add}
           />
         </section>
@@ -203,10 +215,12 @@ export default function PosPage() {
         onTableNumberChange={setTableNumber}
         onComplete={handleComplete}
       />
-      <CustomerPicker
+      <CustomerPickerDialog
         open={customerPickerOpen}
         onOpenChange={setCustomerPickerOpen}
         customers={customers}
+        transactions={transactions}
+        memberDiscountRate={0.1}
         selectedId={customerId}
         onSelect={handleSelectCustomer}
       />
