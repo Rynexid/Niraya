@@ -11,7 +11,7 @@ import crypto from "crypto";
 const CheckoutSchema = z.object({
   idempotencyKey: z.string().min(1),
   items: z.array(z.object({
-    productId: z.string().uuid(),
+    productId: z.string(),
     quantity: z.number().int().positive(),
   })).min(1),
   paymentMethod: z.enum(["cash", "card", "qris"]),
