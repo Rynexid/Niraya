@@ -80,13 +80,15 @@ export default function PosPage() {
   )
 
   const posCategories = useMemo(
-    () =>
-      categories.map((cat) => ({
+    () => [
+      { id: 'all', label: 'Semua', icon: undefined, count: posProducts.length },
+      ...categories.map((cat) => ({
         id: cat.id,
         label: cat.name,
         icon: undefined,
         count: posProducts.filter((p) => p.categoryId === cat.id).length,
       })),
+    ],
     [categories, posProducts],
   )
 
