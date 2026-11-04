@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { getSession } from "@/lib/auth";
@@ -8,14 +9,19 @@ import {
   requireRole,
   ACTION_ROLES,
 } from "@/server/auth/session";
+import { createSeedData } from "@/lib/business-seed";
 
 async function requireSession() {
+  const cookieStore = await cookies();
+  const demo = cookieStore.get("niraya_demo")?.value;
+  if (demo === "1") {
+    return { id: "demo-user" } as any;
+  }
+  
   const session = await getSession();
   const user =
     (session as any)?.user ?? (session as any)?.data?.user ?? null;
 
-  // Setiap akun yang login otomatis punya profil `auth.user_profiles`
-  // dengan role dasar `user`.
   if (user?.id) await ensureUserProfile(user);
 
   return user;
@@ -34,6 +40,12 @@ const BusinessQuerySchema = z.object({
 });
 
 export async function GET(request: Request) {
+  const cookieStore = await cookies();
+  const demo = cookieStore.get("niraya_demo")?.value;
+  if (demo === "1") {
+    return NextResponse.json(createSeedData());
+  }
+  
   const user = await requireSession();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -72,6 +84,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const cookieStore = await cookies();
+  const demo = cookieStore.get("niraya_demo")?.value;
+  if (demo === "1") {
+    return NextResponse.json({ ok: true });
+  }
+  
   const user = await requireSession();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -84,7 +102,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Aksi wajib diisi." }, { status: 400 });
     }
 
-    // Enforensi role per aksi.
     const requiredRole = ACTION_ROLES[action];
     if (requiredRole) {
       try {
