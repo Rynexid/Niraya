@@ -3,6 +3,9 @@ import { toast } from 'sonner'
 
 import { createSeedData, BUSINESS_SETTINGS, type BusinessSeed } from '@/lib/business-seed'
 import { isDemoMode } from '@/lib/auth-mode'
+import { mutateBusiness } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { BUSINESS_QUERY_KEY } from '@/hooks/use-business'
 import type {
   BusinessSettings,
   Category,
@@ -114,22 +117,14 @@ async function sync(action: string, payload: unknown) {
   if (useBusinessStore.getState().mode !== 'real') return
 
   try {
-    const response = await fetch('/api/business', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, payload }),
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'Gagal menyimpan data.')
-    }
+    await mutateBusiness(action, payload)
+    queryClient.invalidateQueries({ queryKey: BUSINESS_QUERY_KEY })
   } catch (error) {
     toast.error('Perubahan gagal disimpan', {
       description:
         error instanceof Error ? error.message : 'Silakan coba lagi.',
     })
-    void useBusinessStore.getState().hydrate()
+    queryClient.invalidateQueries({ queryKey: BUSINESS_QUERY_KEY })
   }
 }
 
@@ -165,34 +160,22 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
       return
     }
 
-    set({ mode: 'real' })
+    set({
+      categories: [],
+      products: [],
+      customers: [],
+      staff: [],
+      transactions: [],
+      movements: [],
+      settings: BUSINESS_SETTINGS,
+      mode: 'real',
+      ready: false,
+    })
 
-    try {
-      const response = await fetch('/api/business', { cache: 'no-store' })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Gagal memuat data.')
-      }
-
-      const data = await response.json()
-      set({ ...data, mode: 'real', ready: true })
-    } catch (error) {
-      set({
-        categories: [],
-        products: [],
-        customers: [],
-        staff: [],
-        transactions: [],
-        movements: [],
-        settings: BUSINESS_SETTINGS,
-        mode: 'real',
-        ready: true,
-      })
-      toast.error('Gagal memuat data', {
-        description:
-          error instanceof Error ? error.message : 'Silakan muat ulang halaman.',
-      })
-    }
+    // Real data is fetched once by BusinessDataProvider via TanStack Query and
+    // written into this store. This store no longer performs its own database
+    // fetch so there is a single data source for real sessions.
+    return
   },
 
   addCategory: (input) => {

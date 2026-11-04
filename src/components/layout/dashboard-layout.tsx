@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 
 import { AppSidebar } from "@/components/appsidebar"
 import { AppHeader } from "@/components/layout/app-header"
+import { Providers } from "@/components/providers"
 import { useBusinessStore } from "@/stores/business-store"
 import { cn } from "@/lib/utils"
 
@@ -84,7 +85,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       >
         <AppHeader collapsed={collapsed} onToggle={setCollapsed} />
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-          {ready ? children : <BusinessDataLoader />}
+          <Providers>
+            {ready ? children : <BusinessDataLoader />}
+          </Providers>
         </main>
       </div>
     </div>
