@@ -28,7 +28,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useRealUser } from "@/hooks/use-real-user"
+import { DEMO_ACCOUNT } from "@/lib/demo-account"
 import { cn } from "@/lib/utils"
+import { useBusinessStore } from "@/stores/business-store"
+import { useDemoAuthStore } from "@/stores/demo-auth-store"
 
 interface NavItem {
   href: string
@@ -118,6 +122,21 @@ export function AppSidebar({
   className?: string
 }) {
   const pathname = usePathname()
+  const mode = useBusinessStore((state) => state.mode)
+  const realUser = useRealUser(mode === "real")
+  const demoSession = useDemoAuthStore((state) => state.session)
+  const currentUser =
+    mode === "demo"
+      ? {
+          name: demoSession?.name ?? DEMO_ACCOUNT.name,
+          email: demoSession?.email ?? DEMO_ACCOUNT.email,
+          avatar: undefined,
+        }
+      : {
+          name: realUser?.name ?? "Akun terdaftar",
+          email: realUser?.email ?? "",
+          avatar: realUser?.image ?? undefined,
+        }
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     sales: true,
     catalog: true,
@@ -350,16 +369,10 @@ export function AppSidebar({
         <footer className="shrink-0 border-t border-sidebar-border p-3">
           {collapsed ? (
             <div className="flex justify-center">
-              <NavUser
-                collapsed
-                user={{ name: "Admin", email: "admin@niraya.app" }}
-              />
+              <NavUser collapsed user={currentUser} />
             </div>
           ) : (
-            <NavUser
-              collapsed={false}
-              user={{ name: "Admin", email: "admin@niraya.app" }}
-            />
+            <NavUser collapsed={false} user={currentUser} />
           )}
         </footer>
 
