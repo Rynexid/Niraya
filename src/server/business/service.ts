@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, or } from "drizzle-orm";
 
 import { BUSINESS_SETTINGS } from "@/lib/business-seed";
 import type {
@@ -38,7 +38,88 @@ export type BusinessData = {
   settings: BusinessSettings;
 };
 
-export async function getBusinessData(): Promise<BusinessData> {
+export type BusinessQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  categoryId?: string;
+  status?: string;
+  stockFilter?: string;
+  payment?: string;
+  from?: string;
+  to?: string;
+};
+
+export type ActingUser = {
+  actingUserId?: string;
+  actingUserRole?: string;
+};
+
+export async function getBusinessData(query: BusinessQuery = {}): Promise<BusinessData> {
+  const {
+    page = 1,
+    pageSize = 20,
+    search,
+    categoryId,
+    status,
+    stockFilter: _stockFilter,
+    payment,
+    from,
+    to,
+  } = query;
+
+  const offset = (page - 1) * pageSize;
+
+  const transactionFilters: any[] = [];
+  if (search) {
+    transactionFilters.push(
+      or(
+        ilike(transactions.number, `%${search}%`),
+        ilike(transactions.customerName, `%${search}%`),
+        ilike(transactions.cashierName, `%${search}%`)
+      )
+    );
+  }
+  if (status) transactionFilters.push(eq(transactions.status, status));
+  if (payment) transactionFilters.push(eq(transactions.paymentMethod, payment));
+  if (from) transactionFilters.push(gte(transactions.createdAt, new Date(from)));
+  if (to) transactionFilters.push(lte(transactions.createdAt, new Date(to)));
+
+  const productFilters: any[] = [];
+  if (search) {
+    productFilters.push(
+      or(
+        ilike(products.name, `%${search}%`),
+        ilike(products.sku, `%${search}%`),
+        ilike(products.barcode ?? "", `%${search}%`)
+      )
+    );
+  }
+  if (categoryId) productFilters.push(eq(products.categoryId, categoryId));
+  if (status) productFilters.push(eq(products.status, status));
+
+  const customerFilters: any[] = [];
+  if (search) {
+    customerFilters.push(
+      or(
+        ilike(customers.name, `%${search}%`),
+        ilike(customers.phone, `%${search}%`),
+        ilike(customers.email, `%${search}%`)
+      )
+    );
+  }
+
+  const staffFilters: any[] = [];
+  if (search) {
+    staffFilters.push(
+      or(
+        ilike(staff.name, `%${search}%`),
+        ilike(staff.email, `%${search}%`)
+      )
+    );
+  }
+  if (status) staffFilters.push(eq(staff.status, status));
+
   const [
     categoryRows,
     productRows,
@@ -50,11 +131,32 @@ export async function getBusinessData(): Promise<BusinessData> {
     movementRows,
   ] = await Promise.all([
     db.select().from(categories),
-    db.select().from(products),
-    db.select().from(customers),
-    db.select().from(staff),
+    db
+      .select()
+      .from(products)
+      .where(and(...productFilters))
+      .limit(pageSize)
+      .offset(offset),
+    db
+      .select()
+      .from(customers)
+      .where(and(...customerFilters))
+      .limit(pageSize)
+      .offset(offset),
+    db
+      .select()
+      .from(staff)
+      .where(and(...staffFilters))
+      .limit(pageSize)
+      .offset(offset),
     db.select().from(settings).where(eq(settings.id, "default")),
-    db.select().from(transactions),
+    db
+      .select()
+      .from(transactions)
+      .where(and(...transactionFilters))
+      .orderBy(desc(transactions.createdAt))
+      .limit(pageSize)
+      .offset(offset),
     db.select().from(transactionItems),
     db.select().from(stockMovements),
   ]);
@@ -197,7 +299,12 @@ function requiredId(value: unknown, label: string): string {
   return value;
 }
 
-export async function mutateBusiness(action: string, payload: any) {
+export async function mutateBusiness(
+  action: string,
+  payload: any,
+  actingUser: ActingUser = {}
+) {
+  const { actingUserId: _actingUserId, actingUserRole: _actingUserRole } = actingUser;
   switch (action) {
     case "category.create": {
       await db.insert(categories).values({
