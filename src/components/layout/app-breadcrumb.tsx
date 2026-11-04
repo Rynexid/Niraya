@@ -1,24 +1,17 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import { Fragment, useMemo } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+
 import {
   Breadcrumb,
-  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Fragment, useMemo } from "react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
 
 const labels: Record<string, string> = {
   dashboard: "Dashboard",
@@ -40,79 +33,46 @@ const labels: Record<string, string> = {
 
 function formatLabel(segment: string) {
   if (labels[segment]) return labels[segment]
-  // Handle IDs or slugs
   if (/^[0-9a-f-]{8,}$/i.test(segment)) return "Detail"
   return segment
     .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
 export function AppBreadcrumb() {
   const pathname = usePathname()
-  const segments = useMemo(() => pathname.split("/").filter(Boolean), [pathname])
 
-  if (segments.length === 0) return null
+  const items = useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean)
 
-  const items = segments.map((segment, index) => {
-    const href = "/" + segments.slice(0, index + 1).join("/")
-    const isLast = index === segments.length - 1
-    const label = formatLabel(segment)
-    return { segment, href, isLast, label }
-  })
+    if (segments.length === 0) return []
 
-  // Collapse if more than 3 items
-  const shouldCollapse = items.length > 3
-  let visibleItems = items
-  if (shouldCollapse) {
-    const first = items[0]
-    const last = items[items.length - 1]
-    const middle = items.slice(1, items.length - 1)
-    return (
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link href={first.href}>{first.label}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                  <BreadcrumbEllipsis />
-                  <span className="sr-only">Tampilkan breadcrumb</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {middle.map((item) => (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link href={item.href}>{item.label}</Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{last.label}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-    )
-  }
+    const items = segments.map((segment, index) => ({
+      href: "/" + segments.slice(0, index + 1).join("/"),
+      isLast: index === segments.length - 1,
+      label: formatLabel(segment),
+    }))
+
+    if (segments[0] !== "dashboard") {
+      items.unshift({ href: "/dashboard", isLast: false, label: "Dashboard" })
+    }
+
+    return items
+  }, [pathname])
+
+  if (items.length === 0) return null
 
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        {items.map((item, index) => (
+        {items.map((item) => (
           <Fragment key={item.href}>
             <BreadcrumbItem>
               {item.isLast ? (
                 <BreadcrumbPage>{item.label}</BreadcrumbPage>
               ) : (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.label}</Link>
+                <BreadcrumbLink render={<Link href={item.href} />}>
+                  {item.label}
                 </BreadcrumbLink>
               )}
             </BreadcrumbItem>

@@ -59,31 +59,38 @@ function escapeHtml(value: string): string {
 
 /** Open a print-only window. Returns false when the browser blocks popups. */
 function openPrintWindow(title: string, body: string): boolean {
-  const win = window.open('', '_blank', 'width=420,height=760')
-  if (!win) return false
-
-  win.document.write(
-    `<!doctype html><html lang="id"><head><meta charset="utf-8" />` +
-      `<title>${escapeHtml(title)}</title><style>${PRINT_STYLES}</style></head>` +
-      `<body>${body}</body></html>`,
-  )
-  win.document.close()
-  win.focus()
-
-  // Wait for the logo to decode before opening the print preview.
-  let attempts = 0
-  const printWhenReady = () => {
-    attempts += 1
-    if (win.document.readyState === 'complete' || attempts > 20) {
-      win.focus()
-      win.print()
-      return
+  try {
+    const win = window.open('', '_blank', 'width=420,height=760')
+    if (!win) {
+      alert('Popup diblokir. Izinkan popup untuk mencetak struk.')
+      return false
     }
-    window.setTimeout(printWhenReady, 120)
-  }
-  window.setTimeout(printWhenReady, 150)
 
-  return true
+    win.document.open()
+    win.document.write(
+      `<!doctype html><html lang="id"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />` +
+        `<title>${escapeHtml(title)}</title><style>${PRINT_STYLES}</style></head>` +
+        `<body>${body}</body></html>`,
+    )
+    win.document.close()
+
+    const doPrint = () => {
+      try {
+        win.focus()
+        win.print()
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    setTimeout(doPrint, 300)
+    win.onload = doPrint
+    return true
+  } catch (e) {
+    console.error(e)
+    alert('Gagal mencetak struk')
+    return false
+  }
 }
 
 /** Assets inside the print document need an absolute URL (about:blank base). */
@@ -143,7 +150,7 @@ export function printQris({
         <tr class="total"><td>Total</td><td>${formatCurrency(amount)}</td></tr>
       </table>
       <p class="hint">Scan kode ini dengan aplikasi pembayaran apa pun (GoPay, OVO, DANA, ShopeePay, atau mobile banking). Nominal sudah terisi otomatis.</p>
-      <p class="footer">Demo Niraya POS &mdash; bukan transaksi sungguhan.</p>
+      <p class="footer">Niraya POS &mdash; kasir, stok, dan laporan.</p>
     </main>
   `
 
@@ -233,7 +240,7 @@ export function printReceipt({
     ${cashRows}
     <div class="dashed"></div>
     <p class="center">Terima kasih atas kunjungan Anda</p>
-    <p class="center muted">Demo Niraya POS</p>
+    <p class="center muted">Niraya POS</p>
   </main>`
 
   return openPrintWindow(`Struk ${orderId}`, body)

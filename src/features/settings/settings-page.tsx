@@ -1,14 +1,11 @@
 "use client";
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { DownloadIcon, MonitorIcon, MoonIcon, RotateCcwIcon, SunIcon } from 'lucide-react'
-import { useState } from 'react'
+import { DownloadIcon, MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
 
-import { ConfirmDialog } from '@/components/shared/confirm-dialog'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { useTheme } from '@/components/themeprovider'
 import { PageHeader } from '@/components/shared/page-header'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -33,11 +30,10 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { initials } from '@/features/customers/customer-detail-sheet'
-import { BUSINESS_SETTINGS } from '@/lib/business-seed'
-import { DEMO_ACCOUNT } from '@/lib/demo-account'
+import { useRealUser } from '@/hooks/use-real-user'
+import { appRoleLabel } from '@/lib/business-labels'
 import { cn } from '@/lib/utils'
 import { useBusinessStore } from '@/stores/business-store'
-import { useDemoAuthStore } from '@/stores/demo-auth-store'
 import type { BusinessSettings } from '@/types/business'
 
 const settingsSchema = z.object({
@@ -84,11 +80,14 @@ const THEME_OPTIONS = [
 ] as const
 
 export function SettingsPage() {
-  const { settings, updateSettings, resetDemoData } = useBusinessStore()
+  const { settings, updateSettings } = useBusinessStore()
   const { theme, setTheme } = useTheme()
-  const session = useDemoAuthStore((state) => state.session)
-  const currentUser = session ?? DEMO_ACCOUNT
-  const [resetOpen, setResetOpen] = useState(false)
+  const realUser = useRealUser(true)
+  const currentUser = {
+    name: realUser?.name ?? 'Akun terdaftar',
+    email: realUser?.email ?? '',
+    role: appRoleLabel(realUser?.role),
+  }
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -138,16 +137,7 @@ export function SettingsPage() {
     URL.revokeObjectURL(url)
 
     toast.success('Data diekspor', {
-      description: 'File JSON berisi seluruh data demo di browser ini.',
-    })
-  }
-
-  const handleReset = () => {
-    resetDemoData()
-    form.reset(toFormValues(BUSINESS_SETTINGS))
-    setResetOpen(false)
-    toast.success('Data demo direset', {
-      description: 'Katalog, transaksi, dan pengaturan kembali ke contoh awal.',
+      description: 'File JSON berisi data bisnis dari database.',
     })
   }
 
@@ -156,7 +146,6 @@ export function SettingsPage() {
       <PageHeader
         title="Pengaturan"
         description="Atur profil bisnis, pajak, tampilan, dan data aplikasi."
-        badge={<DemoDataBadge />}
         actions={
           <Button type="submit" form="settings-form">
             Simpan perubahan
@@ -462,10 +451,7 @@ export function SettingsPage() {
                     {currentUser.name}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {currentUser.role === 'admin'
-                      ? 'Admin'
-                      : currentUser.role}{' '}
-                    · {currentUser.email}
+                    {currentUser.role} · {currentUser.email}
                   </p>
                 </div>
                 <Badge variant="success" className="ml-auto">
@@ -473,15 +459,14 @@ export function SettingsPage() {
                 </Badge>
               </div>
               <p className="mt-3 rounded-lg bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
-                Sesi ini masih demo di browser. Autentikasi Better Auth belum
-                diaktifkan, jadi belum ada pembatasan akses nyata.
+                Sesi ini terhubung ke database Niraya. Perubahan tersimpan di server.
               </p>
             </section>
 
             <section className="rounded-xl border border-border bg-card p-4">
               <h2 className="text-sm font-semibold">Data & sistem</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Seluruh data demo tersimpan di localStorage browser ini.
+                Data bisnis tersimpan di database dan tersinkron dengan server.
               </p>
               <div className="mt-3 flex flex-col gap-2">
                 <Button
@@ -493,34 +478,14 @@ export function SettingsPage() {
                   <DownloadIcon aria-hidden="true" />
                   Ekspor data (JSON)
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start text-destructive hover:text-destructive"
-                  onClick={() => setResetOpen(true)}
-                >
-                  <RotateCcwIcon aria-hidden="true" />
-                  Reset data demo
-                </Button>
               </div>
               <p className="mt-3 text-[11px] text-muted-foreground">
-                Niraya POS · versi demo · penyimpanan{' '}
-                <span className="font-mono">niraya.business.v1</span>
+                Niraya POS · data real · penyimpanan Neon Postgres
               </p>
             </section>
           </div>
         </form>
       </Form>
-
-      <ConfirmDialog
-        open={resetOpen}
-        onOpenChange={setResetOpen}
-        title="Reset data demo?"
-        description="Semua produk, transaksi, pelanggan, staf, dan pengaturan akan kembali ke contoh awal. Tindakan ini tidak bisa dibatalkan."
-        confirmLabel="Reset data"
-        destructive
-        onConfirm={handleReset}
-      />
     </div>
   )
 }

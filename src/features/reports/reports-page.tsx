@@ -21,7 +21,6 @@ import { toast } from 'sonner'
 import { RevenueChart } from '@/components/dashboard/revenue-chart'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { DateRangeFilter } from '@/components/shared/date-range-filter'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatTile } from '@/components/shared/stat-tile'
@@ -281,7 +280,6 @@ export function ReportsPage() {
       <PageHeader
         title="Laporan"
         description="Analisis penjualan, performa produk, dan kondisi stok dalam satu tempat."
-        badge={<DemoDataBadge />}
         actions={
           <>
             <Button variant="outline" onClick={handlePrint}>

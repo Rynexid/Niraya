@@ -57,8 +57,7 @@ const GUIDE_SECTIONS = [
     steps: [
       'Tunai: masukkan nominal, gunakan tombol uang pas, dan lihat kembalian.',
       'QRIS: QR EMVCo dibuat dari nominal transaksi dan bisa dicetak di kertas 80mm.',
-      'EDC: simulasi pembayaran kartu untuk alur demo.',
-      'Pembayaran masih simulasi — tidak ada integrasi payment gateway nyata.',
+      'EDC: simulasi pembayaran kartu untuk alur POS.',
     ],
   },
 ] as const
@@ -67,7 +66,7 @@ const FAQS = [
   {
     question: 'Apakah data ini tersimpan permanen?',
     answer:
-      'Data demo disimpan di localStorage browser dengan kunci niraya.business.v1. Data bertahan setelah reload, tetapi hilang jika penyimpanan browser dibersihkan. Gunakan Pengaturan → Ekspor data untuk mencadangkan.',
+      'Data real disimpan di database Neon dan tersinkron dengan server. Setiap perubahan langsung tercatat.',
   },
   {
     question: 'Kenapa produk tidak muncul di POS?',
@@ -82,7 +81,7 @@ const FAQS = [
   {
     question: 'Apakah login dan hak akses sudah aktif?',
     answer:
-      'Belum. Aplikasi berjalan dalam mode demo tanpa autentikasi. Matriks peran di halaman Staf adalah acuan, dan pembatasan modul akan aktif setelah Better Auth terhubung.',
+      'Ya. Login memakai Neon Auth dan data bisnis hanya bisa diakses oleh sesi yang terautentikasi.',
   },
   {
     question: 'Kenapa struk tidak tercetak?',
@@ -105,7 +104,11 @@ export function HelpPage() {
       <PageHeader
         title="Bantuan"
         description="Panduan singkat untuk menjalankan operasional harian di Niraya."
-        badge={<Badge variant="outline">Mode demo</Badge>}
+        badge={
+          <Badge variant="outline">
+            Data real
+          </Badge>
+        }
       />
 
       <section className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -240,10 +243,9 @@ export function HelpPage() {
           </section>
 
           <section className="rounded-xl border border-border bg-muted/30 p-4">
-            <h2 className="text-sm font-semibold">Catatan demo</h2>
+            <h2 className="text-sm font-semibold">Catatan data real</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Data, pembayaran, dan autentikasi di aplikasi ini adalah contoh
-              untuk pratinjau UI. Tidak ada transaksi uang nyata yang diproses.
+              Transaksi tercatat di database, tetapi pembayaran masih berupa pencatatan manual. Belum ada payment gateway nyata yang terhubung.
             </p>
           </section>
         </div>

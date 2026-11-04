@@ -11,14 +11,12 @@ type ProductCatalogProps = {
   products: PosProduct[]
   categories: PosCategory[]
   activeCategory: string
-  /** Quantity per product id already in the order. */
   quantities?: Record<string, number>
   onCategoryChange: (categoryId: string) => void
   onAdd: (product: PosProduct) => void
   className?: string
 }
 
-/** Category pills plus the scrollable product grid. */
 export function ProductCatalog({
   products,
   categories,
@@ -37,29 +35,25 @@ export function ProductCatalog({
       >
         {categories.map((category) => {
           const active = category.id === activeCategory
-          const Icon = category.icon
-
+          const Icon = category.icon as any
           return (
             <button
               key={category.id}
               type="button"
-              aria-pressed={active}
               onClick={() => onCategoryChange(category.id)}
               className={cn(
-                'inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
                 active
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-card text-foreground hover:bg-muted',
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-transparent bg-muted/60 text-muted-foreground hover:bg-muted',
               )}
             >
-              <Icon aria-hidden="true" className="size-4 shrink-0" />
+              {Icon && typeof Icon === 'function' ? <Icon aria-hidden="true" className="size-4 shrink-0" /> : null}
               <span className="whitespace-nowrap">{category.label}</span>
               <span
                 className={cn(
-                  'rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
-                  active
-                    ? 'bg-primary-foreground/20 text-primary-foreground'
-                    : 'bg-muted text-muted-foreground',
+                  'rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
+                  active ? 'bg-primary/15' : 'bg-background/80',
                 )}
               >
                 {formatNumber(category.count)}
@@ -69,31 +63,26 @@ export function ProductCatalog({
         })}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1 no-scrollbar">
-        {products.length === 0 ? (
-          <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border p-8 text-center">
-            <SearchXIcon
-              aria-hidden="true"
-              className="size-6 text-muted-foreground"
+      {products.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+          <SearchXIcon className="size-9 text-muted-foreground" />
+          <p className="text-sm font-semibold">Produk tidak ditemukan</p>
+          <p className="text-xs text-muted-foreground">
+            Coba ubah kata kunci atau filter kategori.
+          </p>
+        </div>
+      ) : (
+        <div className="custom-scrollbar grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {products.map((product) => (
+            <PosProductCard
+              key={product.id}
+              product={product}
+              quantity={quantities?.[product.id] ?? 0}
+              onAdd={onAdd}
             />
-            <p className="text-sm font-medium">Produk tidak ditemukan</p>
-            <p className="text-xs text-muted-foreground">
-              Coba kata kunci atau kategori lain.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {products.map((product) => (
-              <PosProductCard
-                key={product.id}
-                product={product}
-                quantity={quantities?.[product.id] ?? 0}
-                onAdd={onAdd}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

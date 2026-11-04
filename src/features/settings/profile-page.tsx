@@ -3,7 +3,19 @@
 import Link from 'next/link'
 import { User, Mail, Building, ShieldCheck, Clock } from "lucide-react"
 
+import { useRealUser } from "@/hooks/use-real-user"
+import { appRoleLabel } from "@/lib/business-labels"
+import { initials } from "@/features/customers/customer-detail-sheet"
+
 export function ProfilePage() {
+  const realUser = useRealUser(true)
+
+  const currentUser = {
+    name: realUser?.name ?? "Akun terdaftar",
+    email: realUser?.email ?? "",
+    role: appRoleLabel(realUser?.role),
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-2">
@@ -19,39 +31,37 @@ export function ProfilePage() {
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="relative">
-                <img
-                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"
-                  alt="Sarah Vance"
-                  className="h-20 w-20 rounded-full object-cover border border-border"
-                />
+                <span className="h-20 w-20 rounded-full bg-muted flex items-center justify-center text-[24px] font-semibold">
+                  {initials(currentUser.name)}
+                </span>
                 <div className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 border border-background" />
               </div>
               <div>
-                <h2 className="font-semibold">Sarah Vance</h2>
-                <p className="text-sm text-muted-foreground">Cashier • Reg #01</p>
+                <h2 className="font-semibold">{currentUser.name}</h2>
+                <p className="text-sm text-muted-foreground">{currentUser.role} • Niraya POS</p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <User className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">Sarah Vance</span>
+                <span className="text-sm truncate">{currentUser.name}</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <Mail className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">sarah@niraya.pos</span>
+                <span className="text-sm truncate text-muted-foreground">{currentUser.email}</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <Building className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">NIRAYA Enterprise POS</span>
+                <span className="text-sm">Niraya POS</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <ShieldCheck className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">Admin</span>
+                <span className="text-sm">{currentUser.role}</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">Bergabung sejak 01 Jan 2026</span>
+                <span className="text-sm">Sesi terdaftar</span>
               </div>
             </div>
           </div>

@@ -1,80 +1,213 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import {
+  EyeIcon,
+  EyeOffIcon,
+  Loader2Icon,
+  UserPlusIcon,
+} from "lucide-react"
+import { z } from "zod"
+
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import Link from "next/link";
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { authClient } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
+
+const signupSchema = z
+  .object({
+    name: z.string().trim().min(2, "Nama minimal 2 karakter"),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email wajib diisi")
+      .refine(
+        (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+        "Format email tidak valid"
+      ),
+    password: z.string().min(8, "Kata sandi minimal 8 karakter"),
+    confirmPassword: z.string().min(1, "Konfirmasi kata sandi wajib diisi"),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: "Konfirmasi kata sandi tidak cocok",
+    path: ["confirmPassword"],
+  })
+
+type SignupValues = z.infer<typeof signupSchema>
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
+  const [formError, setFormError] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  })
+
+  const onSubmit = async (values: SignupValues) => {
+    setFormError("")
+
     try {
-      const res = await authClient.signUp.email({ email, password, name });
-      if (res.error) {
-        setError(res.error.message || "Signup gagal");
-        setLoading(false);
-        return;
+      const result = await authClient.signUp.email({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+      })
+
+      if (result?.error) {
+        setFormError(result.error.message || "Pendaftaran gagal.")
+        return
       }
-      router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Signup gagal");
-      setLoading(false);
+
+      router.push("/dashboard")
+      router.refresh()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Pendaftaran gagal. Silakan coba lagi."
+      )
     }
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit} className={cn("flex flex-col gap-6", className)} {...props}>
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold">Buat akun baru</h1>
-          <p className="text-sm text-balance text-muted-foreground">
-            Daftar untuk menggunakan NIRAYA POS
-          </p>
-        </div>
-        {error && <p className="text-sm text-destructive text-center">{error}</p>}
-        <Field>
-          <FieldLabel htmlFor="name">Nama Lengkap</FieldLabel>
-          <Input id="name" type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className={cn("flex flex-col gap-6", className)}
+      noValidate
+      {...props}
+    >
+      <div className="space-y-1.5 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Buat akun Niraya
+        </h1>
+        <p className="text-sm text-balance text-muted-foreground">
+          Isi data di bawah untuk mulai menggunakan Niraya POS.
+        </p>
+      </div>
+
+      {formError && (
+        <Alert variant="destructive">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
+      <FieldGroup className="gap-5">
+        <Field data-invalid={!!errors.name}>
+          <FieldLabel htmlFor="name">Nama lengkap</FieldLabel>
+          <Input
+            id="name"
+            type="text"
+            autoComplete="name"
+            placeholder="Nama Anda"
+            aria-invalid={!!errors.name}
+            {...register("name")}
+          />
+          <FieldError errors={[errors.name]} />
         </Field>
-        <Field>
+
+        <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input
+            id="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="nama@niraya.id"
+            aria-invalid={!!errors.email}
+            {...register("email")}
+          />
+          <FieldError errors={[errors.email]} />
         </Field>
-        <Field>
-          <FieldLabel htmlFor="password">Password</FieldLabel>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <FieldDescription>Minimal 8 karakter</FieldDescription>
+
+        <Field data-invalid={!!errors.password}>
+          <FieldLabel htmlFor="password">Kata sandi</FieldLabel>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="••••••••"
+              className="pr-10"
+              aria-invalid={!!errors.password}
+              {...register("password")}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute top-1/2 right-1 -translate-y-1/2"
+              aria-label={
+                showPassword
+                  ? "Sembunyikan kata sandi"
+                  : "Tampilkan kata sandi"
+              }
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </Button>
+          </div>
+          <FieldDescription>Minimal 8 karakter.</FieldDescription>
+          <FieldError errors={[errors.password]} />
         </Field>
-        <Field>
-          <Button type="submit" disabled={loading}>{loading ? "Memproses..." : "Daftar"}</Button>
+
+        <Field data-invalid={!!errors.confirmPassword}>
+          <FieldLabel htmlFor="confirmPassword">Konfirmasi kata sandi</FieldLabel>
+          <Input
+            id="confirmPassword"
+            type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
+            placeholder="••••••••"
+            aria-invalid={!!errors.confirmPassword}
+            {...register("confirmPassword")}
+          />
+          <FieldError errors={[errors.confirmPassword]} />
         </Field>
-<Field>
-          <FieldDescription className="px-6 text-center">
-            Sudah punya akun? <Link href="/login" className="underline underline-offset-4">Masuk</Link>
-          </FieldDescription>
-        </Field>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <Loader2Icon className="animate-spin" />
+          ) : (
+            <UserPlusIcon />
+          )}
+          {isSubmitting ? "Memproses..." : "Daftar"}
+        </Button>
       </FieldGroup>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Sudah punya akun?{" "}
+        <Link
+          href="/login"
+          className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+        >
+          Masuk
+        </Link>
+      </p>
     </form>
-  );
+  )
 }

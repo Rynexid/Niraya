@@ -22,15 +22,15 @@ import { toast } from 'sonner'
 import { ReceiptPreview } from '@/components/pos/receipt-preview'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { formatCurrency, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { BusinessSettings, CompletedSale } from '@/types/business'
@@ -41,7 +41,7 @@ import {
   type PosOrderType,
 } from '../lib/order'
 import { printQris, printReceipt } from '../lib/print'
-import { buildQrisPayload, DEMO_MERCHANT } from '../lib/qris'
+import { buildQrisPayload } from '../lib/qris'
 import type { PosTotals } from '../lib/pricing'
 
 type PaymentMethod = 'cash' | 'qris' | 'card'
@@ -109,13 +109,13 @@ export type CheckoutDialogProps = {
    * Persist the completed sale. Returns the stored transaction number so the
    * success screen and printed receipt match the transactions table.
    */
-  onComplete: (sale: CompletedSale) => string
+  onComplete: (sale: CompletedSale, serverResult?: any) => string
   onSuccess?: (serverReceipt: any) => void
 }
 
 /**
  * Two-step checkout: review + tender, then a printable success receipt. The
- * body unmounts whenever the dialog closes, so each order starts fresh.
+ * body unmounts whenever the sheet closes, so each order starts fresh.
  */
 export function CheckoutDialog({
   open,
@@ -123,11 +123,14 @@ export function CheckoutDialog({
   ...bodyProps
 }: CheckoutDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] max-w-[calc(100%-1rem)] gap-0 overflow-hidden p-0 sm:max-w-3xl">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
+      >
         <CheckoutBody {...bodyProps} onClose={() => onOpenChange(false)} />
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -150,7 +153,7 @@ function CheckoutBody({
   orderType,
   tableNumber,
   customerId,
-  customerName,
+  customerName: initialCustomerName,
   cashierName,
   settings,
   onTableNumberChange,
@@ -163,6 +166,7 @@ function CheckoutBody({
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle')
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null)
+  const [customerName, setCustomerName] = useState(initialCustomerName ?? '')
   const timerRef = useRef<number | null>(null)
   const idempotencyKeyRef = useRef<string>(generateIdempotencyKey())
 
@@ -236,13 +240,14 @@ function CheckoutBody({
     const cashReceived = method === 'cash' ? cashValue : totals.total
     const change =
       method === 'cash' ? Math.max(0, cashValue - totals.total) : 0
+    const resolvedCustomerName = customerName.trim() || 'Pelanggan umum'
 
     const sale: CompletedSale = {
       orderId,
       paidAt: paidAt.toISOString(),
       cashier: cashierName,
       customerId,
-      customerName,
+      customerName: resolvedCustomerName,
       orderType,
       tableNumber: orderType === 'dine-in' ? tableNumber.trim() : undefined,
       items: lines.map((line) => ({
@@ -265,6 +270,12 @@ function CheckoutBody({
     setStatus('processing')
 
     try {
+      let receiptNumber = sale.orderId
+      let receiptPaidAt = paidAt
+      let receiptCashReceived = cashReceived
+      let receiptChange = change
+      let receiptTotal = totals.total
+
       const payload = {
         idempotencyKey: idempotencyKeyRef.current,
         items: lines.map((line) => ({
@@ -273,6 +284,13 @@ function CheckoutBody({
         })),
         paymentMethod: method,
         paymentAmount: method === 'cash' ? cashValue : totals.total,
+        customerId,
+        customerName: resolvedCustomerName,
+        orderType,
+        tableNumber: dineIn ? tableNumber.trim() : undefined,
+        discount: totals.discount,
+        tax: totals.tax,
+        cashier: cashierName,
       }
 
       const res = await fetch('/api/pos/checkout', {
@@ -283,32 +301,38 @@ function CheckoutBody({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Checkout failed')
+        throw new Error(err.error || 'Checkout gagal')
       }
 
       const serverResult = await res.json()
+      const storedNumber = onComplete(sale, serverResult)
 
-      const storedNumber = onComplete(sale)
+      receiptNumber = serverResult.transactionNumber || storedNumber
+      receiptPaidAt = new Date(serverResult.createdAt || paidAt)
+      receiptCashReceived = serverResult.amountPaid ?? cashReceived
+      receiptChange = serverResult.changeAmount ?? change
+      receiptTotal = serverResult.total ?? totals.total
+
+      if (onSuccess) onSuccess(serverResult)
 
       setReceipt({
-        orderId: serverResult.transactionNumber || storedNumber,
+        orderId: receiptNumber,
         lines,
-        totals,
+        totals: { ...totals, total: receiptTotal },
         method,
-        cashReceived: serverResult.amountPaid ?? cashReceived,
-        change: serverResult.changeAmount ?? change,
-        paidAt: new Date(serverResult.createdAt || paidAt),
+        cashReceived: receiptCashReceived,
+        change: receiptChange,
+        paidAt: receiptPaidAt,
         orderType,
         tableNumber,
-        customerName,
+        customerName: resolvedCustomerName,
         cashierName,
         storeName: settings.businessName,
         receiptFooter: settings.receiptFooter,
       })
       setStatus('success')
-      if (onSuccess) onSuccess(serverResult)
       toast.success('Pembayaran berhasil', {
-        description: `${formatNumber(itemCount)} item • ${formatCurrency(serverResult.total ?? totals.total)}`,
+        description: `${formatNumber(itemCount)} item • ${formatCurrency(receiptTotal)}`,
       })
     } catch (error: any) {
       setStatus('idle')
@@ -358,9 +382,9 @@ function CheckoutBody({
       orderId: receipt?.orderId ?? orderId,
       amount: receipt?.totals.total ?? totals.total,
       qrDataUrl,
-      merchantName: DEMO_MERCHANT.name,
-      merchantCity: DEMO_MERCHANT.city,
-      nmid: DEMO_MERCHANT.nmid,
+      merchantName: 'NIRAYA',
+      merchantCity: 'JAKARTA',
+      nmid: 'ID1023456789012',
       logoUrl: '/Logo.png',
     })
 
@@ -385,57 +409,127 @@ function CheckoutBody({
       (total, item) => total + item.quantity,
       0,
     )
+    const isCash = receipt.method === 'cash'
+    const orderDetails = buildReceiptDetails(
+      receipt.orderType,
+      receipt.tableNumber,
+      receipt.customerName,
+    )
 
     return (
-      <div className="flex max-h-[92svh] flex-col">
-        <div className="flex flex-col items-center gap-3 border-b p-5 pr-12 text-center">
-          <span className="flex size-14 items-center justify-center rounded-full bg-success/10 text-success">
-            <CheckCircle2Icon aria-hidden="true" className="size-7" />
+      <div className="flex h-full animate-in flex-col duration-200 fade-in">
+        <div className="flex items-start gap-3 border-b p-4 pr-12">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2Icon aria-hidden="true" className="size-6" />
           </span>
-          <div>
-            <DialogTitle className="text-lg font-bold">
+          <div className="min-w-0 flex-1">
+            <SheetTitle className="text-lg font-bold">
               Pembayaran berhasil
-            </DialogTitle>
-            <DialogDescription className="mt-1">
-              {formatNumber(paidItemCount)} item &bull;{' '}
+            </SheetTitle>
+            <SheetDescription className="mt-0.5">
+              {formatNumber(paidItemCount)} item • {paidLabel}
+            </SheetDescription>
+            <p className="mt-1 text-2xl font-bold tabular-nums">
               {formatCurrency(receipt.totals.total)}
-            </DialogDescription>
+            </p>
+            <Badge
+              variant="secondary"
+              className="mt-2 font-mono text-[11px] tabular-nums"
+            >
+              #{receipt.orderId}
+            </Badge>
           </div>
-          <Badge variant="secondary" className="font-mono text-[11px] tabular-nums">
-            #{receipt.orderId}
-          </Badge>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-4">
-          <ReceiptPreview
-            transactionId={receipt.orderId}
-            date={receipt.paidAt}
-            items={receiptItems}
-            subtotal={receipt.totals.subtotal}
-            discount={receipt.totals.discount}
-            tax={receipt.totals.tax}
-            total={receipt.totals.total}
-            paymentMethod={paidLabel}
-            cashier={receipt.cashierName}
-            storeName={receipt.storeName}
-            logoSrc="/Logo.png"
-            details={buildReceiptDetails(
-              receipt.orderType,
-              receipt.tableNumber,
-              receipt.customerName,
-            )}
-            footer={receipt.receiptFooter || 'Terima kasih • Niraya'}
-            labels={{
-              receipt: 'No. struk',
-              date: 'Waktu',
-              cashier: 'Kasir',
-              subtotal: 'Subtotal',
-              discount: 'Diskon',
-              tax: 'Pajak',
-              total: 'Total',
-              paidWith: 'Dibayar dengan',
-            }}
-          />
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto bg-muted/30 p-4 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div className="flex flex-col gap-3">
+            <div className="rounded-lg border bg-card p-3">
+              <h3 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                Ringkasan pembayaran
+              </h3>
+              <dl className="mt-2 flex flex-col gap-1.5 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-muted-foreground">Metode</dt>
+                  <dd className="font-medium">{paidLabel}</dd>
+                </div>
+                {isCash ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="text-muted-foreground">Diterima</dt>
+                      <dd className="tabular-nums">
+                        {formatCurrency(receipt.cashReceived)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 border-t pt-1.5">
+                      <dt className="font-medium">Kembalian</dt>
+                      <dd
+                        className={cn(
+                          'font-semibold tabular-nums',
+                          receipt.change > 0 && 'text-success',
+                        )}
+                      >
+                        {formatCurrency(receipt.change)}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 border-t pt-1.5">
+                    <dt className="font-medium">Status</dt>
+                    <dd className="font-semibold text-success">Lunas</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
+            <div className="rounded-lg border bg-card p-3">
+              <h3 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                Detail pesanan
+              </h3>
+              <dl className="mt-2 flex flex-col gap-1.5 text-sm">
+                {orderDetails.map((detail) => (
+                  <div
+                    key={detail.label}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <dt className="shrink-0 text-muted-foreground">
+                      {detail.label}
+                    </dt>
+                    <dd className="min-w-0 truncate font-medium">
+                      {detail.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+
+          <div className="flex items-start justify-center">
+            <ReceiptPreview
+              transactionId={receipt.orderId}
+              date={receipt.paidAt}
+              items={receiptItems}
+              subtotal={receipt.totals.subtotal}
+              discount={receipt.totals.discount}
+              tax={receipt.totals.tax}
+              total={receipt.totals.total}
+              paymentMethod={paidLabel}
+              cashier={receipt.cashierName}
+              storeName={receipt.storeName}
+              logoSrc="/Logo.png"
+              details={orderDetails}
+              footer={receipt.receiptFooter || 'Terima kasih • Niraya'}
+              labels={{
+                receipt: 'No. struk',
+                date: 'Waktu',
+                cashier: 'Kasir',
+                subtotal: 'Subtotal',
+                discount: 'Diskon',
+                tax: 'Pajak',
+                total: 'Total',
+                paidWith: 'Dibayar dengan',
+              }}
+            />
+          </div>
         </div>
 
         <div className="grid gap-2 border-t p-4 sm:grid-cols-2">
@@ -465,10 +559,10 @@ function CheckoutBody({
   }
 
   return (
-    <div className="flex max-h-[92svh] flex-col">
-      <DialogHeader className="gap-1 border-b p-4 pr-12">
+    <div className="flex h-full flex-col">
+      <SheetHeader className="gap-1 border-b p-4 pr-12">
         <div className="flex items-center justify-between gap-3">
-          <DialogTitle className="text-base font-bold">Pembayaran</DialogTitle>
+          <SheetTitle className="text-base font-bold">Pembayaran</SheetTitle>
           <Badge
             variant="secondary"
             className="font-mono text-[11px] tabular-nums"
@@ -476,10 +570,11 @@ function CheckoutBody({
             #{orderId}
           </Badge>
         </div>
-        <DialogDescription>
-          Periksa pesanan, pilih metode, lalu konfirmasi pembayaran.
-        </DialogDescription>
-      </DialogHeader>
+        <SheetDescription>
+          {formatNumber(itemCount)} item • Periksa pesanan, pilih metode, lalu
+          konfirmasi pembayaran.
+        </SheetDescription>
+      </SheetHeader>
 
       <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-2">
         <section
@@ -490,57 +585,74 @@ function CheckoutBody({
             Rincian pesanan
           </h3>
 
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-            <span className="flex items-center gap-2 text-xs font-semibold">
+          <div className="divide-y rounded-lg border border-border bg-muted/30">
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="flex items-center gap-2 text-xs font-semibold">
+                {dineIn ? (
+                  <UtensilsIcon
+                    aria-hidden="true"
+                    className="size-4 text-primary"
+                  />
+                ) : (
+                  <ShoppingBagIcon
+                    aria-hidden="true"
+                    className="size-4 text-primary"
+                  />
+                )}
+                {ORDER_TYPE_LABELS[orderType]}
+              </span>
+
               {dineIn ? (
-                <UtensilsIcon aria-hidden="true" className="size-4 text-primary" />
-              ) : (
-                <ShoppingBagIcon
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="checkout-table-number"
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                  >
+                    <ArmchairIcon aria-hidden="true" className="size-3.5" />
+                    Bangku
+                  </label>
+                  <Input
+                    id="checkout-table-number"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={tableNumber}
+                    disabled={busy}
+                    onChange={(event) =>
+                      onTableNumberChange(
+                        sanitizeTableNumber(event.target.value),
+                      )
+                    }
+                    placeholder="—"
+                    aria-label="Nomor bangku"
+                    aria-invalid={tableMissing}
+                    className="h-8 w-16 border-border bg-background px-1 text-center text-sm font-semibold tabular-nums"
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <label
+                htmlFor="checkout-customer-name"
+                className="flex shrink-0 items-center gap-2 text-xs font-semibold"
+              >
+                <UserIcon
                   aria-hidden="true"
-                  className="size-4 text-primary"
+                  className="size-4 shrink-0 text-primary"
                 />
-              )}
-              {ORDER_TYPE_LABELS[orderType]}
-            </span>
-
-            {dineIn ? (
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="checkout-table-number"
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground"
-                >
-                  <ArmchairIcon aria-hidden="true" className="size-3.5" />
-                  Bangku
-                </label>
-                <Input
-                  id="checkout-table-number"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={tableNumber}
-                  disabled={busy}
-                  onChange={(event) =>
-                    onTableNumberChange(sanitizeTableNumber(event.target.value))
-                  }
-                  placeholder="—"
-                  aria-label="Nomor bangku"
-                  aria-invalid={tableMissing}
-                  className="h-8 w-16 border-border bg-background px-1 text-center text-sm font-semibold tabular-nums"
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-            <span className="flex min-w-0 items-center gap-2 text-xs font-semibold">
-              <UserIcon
-                aria-hidden="true"
-                className="size-4 shrink-0 text-primary"
+                Pelanggan
+              </label>
+              <Input
+                id="checkout-customer-name"
+                autoComplete="off"
+                value={customerName}
+                disabled={busy}
+                onChange={(event) => setCustomerName(event.target.value)}
+                placeholder="Nama pelanggan"
+                aria-label="Nama pelanggan"
+                className="h-8 min-w-0 flex-1 border-border bg-background px-2 text-right text-sm font-semibold sm:max-w-48"
               />
-              <span className="truncate">{customerName}</span>
-            </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
-              Pelanggan
-            </span>
+            </div>
           </div>
 
           <ul className="flex flex-col gap-2.5">
@@ -695,7 +807,7 @@ function CheckoutBody({
         ) : (
           <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
             <ShieldCheckIcon aria-hidden="true" className="size-3.5" />
-            Demo — pembayaran disimulasikan, tidak ada transaksi sungguhan.
+            Pembayaran akan dicatat ke transaksi.
           </p>
         )}
       </footer>
@@ -800,7 +912,7 @@ function QrisPanel({ qrDataUrl, total, onPrint, disabled }: QrisPanelProps) {
           {formatCurrency(total)}
         </p>
         <p className="text-[11px] text-muted-foreground">
-          NMID {DEMO_MERCHANT.nmid}
+          NMID ID1023456789012
         </p>
       </div>
 

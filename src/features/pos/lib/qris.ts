@@ -1,10 +1,9 @@
 /**
- * Minimal EMVCo/QRIS payload builder used by the demo checkout. The payload is
- * structurally valid (TLV + CRC16) so any QR scanner can read it, but no real
- * acquirer is attached — payments are simulated in the UI.
+ * Minimal EMVCo/QRIS payload builder used by the checkout. The payload is
+ * structurally valid (TLV + CRC16) so any QR scanner can read it.
  */
 
-export const DEMO_MERCHANT = {
+export const MERCHANT = {
   name: 'NIRAYA',
   city: 'JAKARTA',
   /** National Merchant ID used on the printed QRIS card. */
@@ -44,9 +43,9 @@ export type QrisPayloadInput = {
  * embedded, so the customer never types the nominal.
  */
 export function buildQrisPayload({
-  merchantName = DEMO_MERCHANT.name,
-  merchantCity = DEMO_MERCHANT.city,
-  nmid = DEMO_MERCHANT.nmid,
+  merchantName = MERCHANT.name,
+  merchantCity = MERCHANT.city,
+  nmid = MERCHANT.nmid,
   amount,
   orderId,
 }: QrisPayloadInput): string {
@@ -60,7 +59,7 @@ export function buildQrisPayload({
     tlv('00', '01') +
     tlv('01', '12') +
     tlv('26', merchantAccount) +
-    tlv('52', DEMO_MERCHANT.mcc) +
+    tlv('52', MERCHANT.mcc) +
     tlv('53', '360') +
     tlv('54', amount.toString()) +
     tlv('58', 'ID') +

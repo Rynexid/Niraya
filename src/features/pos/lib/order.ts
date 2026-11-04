@@ -10,3 +10,13 @@ export const ORDER_TYPE_LABELS: Record<PosOrderType, string> = {
 export function sanitizeTableNumber(value: string): string {
   return value.replace(/\D/g, '').slice(0, 3)
 }
+
+
+export function createOrderId() {
+  const date = new Date()
+  const y = date.getFullYear().toString().slice(-2)
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
+  return `ORD-${y}${m}${d}-${rand}`
+}

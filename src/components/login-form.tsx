@@ -1,103 +1,167 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { EyeIcon, EyeOffIcon, Loader2Icon, LogInIcon } from "lucide-react"
+import { z } from "zod"
+
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import {
   Field,
-  FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import Link from "next/link";
+  FieldSeparator,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { authClient } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email wajib diisi")
+    .refine(
+      (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+      "Format email tidak valid"
+    ),
+  password: z.string().min(1, "Kata sandi wajib diisi"),
+})
+
+type LoginValues = z.infer<typeof loginSchema>
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
+  const [formError, setFormError] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  })
+
+  const onSubmit = async (values: LoginValues) => {
+    setFormError("")
+
     try {
-      let res: any = await authClient.signIn.email({ email, password });
-      if (res?.error) {
-        if (email === "demo@niraya.pos" && password === "demo1234") {
-          try {
-            await authClient.signUp.email({ email, password, name: "Demo User" });
-          } catch {}
-          res = await authClient.signIn.email({ email, password });
-        } else {
-          setError(res.error.message || "Login gagal");
-          setLoading(false);
-          return;
-        }
+      const result = await authClient.signIn.email(values)
+
+      if (result?.error) {
+        setFormError(result.error.message || "Email atau kata sandi salah.")
+        return
       }
-      if (res?.error) {
-        setError(res.error.message || "Login gagal");
-        setLoading(false);
-        return;
-      }
-      router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Login gagal");
-      setLoading(false);
+
+      router.push("/dashboard")
+      router.refresh()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Gagal masuk. Silakan coba lagi."
+      )
     }
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit} className={cn("flex flex-col gap-6", className)} {...props}>
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold">Masuk ke akun Anda</h1>
-          <p className="text-sm text-balance text-muted-foreground">
-            Masukkan email Anda untuk masuk ke NIRAYA POS
-          </p>
-        </div>
-        {error && <p className="text-sm text-destructive text-center">{error}</p>}
-        <Field>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className={cn("flex flex-col gap-6", className)}
+      noValidate
+      {...props}
+    >
+      <div className="space-y-1.5 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Masuk ke Niraya
+        </h1>
+        <p className="text-sm text-balance text-muted-foreground">
+          Gunakan email dan kata sandi akun Anda untuk melanjutkan.
+        </p>
+      </div>
+
+      {formError && (
+        <Alert variant="destructive">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
+      <FieldGroup className="gap-5">
+        <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input
+            id="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="nama@niraya.id"
+            aria-invalid={!!errors.email}
+            {...register("email")}
+          />
+          <FieldError errors={[errors.email]} />
         </Field>
-        <Field>
-          <div className="flex items-center">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+
+        <Field data-invalid={!!errors.password}>
+          <FieldLabel htmlFor="password">Kata sandi</FieldLabel>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className="pr-10"
+              aria-invalid={!!errors.password}
+              {...register("password")}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute top-1/2 right-1 -translate-y-1/2"
+              aria-label={
+                showPassword
+                  ? "Sembunyikan kata sandi"
+                  : "Tampilkan kata sandi"
+              }
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </Button>
           </div>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <FieldError errors={[errors.password]} />
         </Field>
-        <Field>
-          <Button type="submit" disabled={loading}>{loading ? "Memproses..." : "Masuk"}</Button>
-        </Field>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            document.cookie = "niraya_demo=1; path=/; max-age=86400";
-            router.push("/dashboard");
-          }}
-          disabled={loading}
-        >
-          Login Demo
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <Loader2Icon className="animate-spin" />
+          ) : (
+            <LogInIcon />
+          )}
+          {isSubmitting ? "Memproses..." : "Masuk"}
         </Button>
-        <Field>
-          <FieldDescription className="text-center">
-            Belum punya akun?{" "}
-            <Link href="/signup" className="underline underline-offset-4">
-              Daftar
-            </Link>
-          </FieldDescription>
-        </Field>
       </FieldGroup>
+
+      <FieldSeparator>atau</FieldSeparator>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Belum punya akun?{" "}
+        <Link
+          href="/signup"
+          className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+        >
+          Daftar
+        </Link>
+      </p>
     </form>
-  );
+  )
 }

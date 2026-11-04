@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { DateRangeFilter } from '@/components/shared/date-range-filter'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { FilterSelect } from '@/components/shared/filter-select'
 import { PageHeader } from '@/components/shared/page-header'
@@ -206,7 +205,6 @@ export function TransactionsPage() {
       <PageHeader
         title="Transaksi"
         description="Telusuri riwayat penjualan, cetak ulang struk, dan tangani pembatalan."
-        badge={<DemoDataBadge />}
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

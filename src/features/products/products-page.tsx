@@ -19,7 +19,6 @@ import { toast } from 'sonner'
 import { ProductThumbnail } from '@/components/pos/product-thumbnail'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { FilterSelect } from '@/components/shared/filter-select'
 import { PageHeader } from '@/components/shared/page-header'
@@ -299,7 +298,6 @@ export function ProductsPage() {
       <PageHeader
         title="Produk"
         description="Kelola katalog, harga, dan stok produk yang dijual di POS."
-        badge={<DemoDataBadge />}
         actions={
           <Button onClick={openCreate}>
             <PlusIcon aria-hidden="true" />

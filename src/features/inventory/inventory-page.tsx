@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 
 import { ProductThumbnail } from '@/components/pos/product-thumbnail'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { FilterSelect } from '@/components/shared/filter-select'
 import { PageHeader } from '@/components/shared/page-header'
@@ -26,16 +25,17 @@ import { TablePagination } from '@/components/shared/table-pagination'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePagination } from '@/hooks/use-pagination'
+import { useRealUser } from '@/hooks/use-real-user'
 import {
   getCategoryName,
   isLowStock,
   isOutOfStock,
 } from '@/lib/business-selectors'
-import { CASHIER_NAME, STOCK_MOVEMENT_LABELS } from '@/lib/business-labels'
+import { STOCK_MOVEMENT_LABELS } from '@/lib/business-labels'
 import { formatCurrency, formatDateTime, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useBusinessStore } from '@/stores/business-store'
-import type { Product, StockMovement } from '@/types/business'
+import type { Product, StockMovement, StockMovementType } from '@/types/business'
 import {
   StockAdjustDialog,
   type StockAdjustValues,
@@ -57,7 +57,9 @@ const MOVEMENT_FILTERS = [
 ] as const
 
 export function InventoryPage() {
-  const { products, categories, movements, adjustStock } = useBusinessStore()
+  const { products, categories, movements, adjustStock } =
+    useBusinessStore()
+  const realUser = useRealUser(true)
   const searchParams = useSearchParams()
 
   const [tab, setTab] = useState('stock')
@@ -172,7 +174,10 @@ export function InventoryPage() {
   }
 
   const handleAdjust = (values: StockAdjustValues) => {
-    const result = adjustStock({ ...values, staff: CASHIER_NAME })
+    const result = adjustStock({
+      ...values,
+      staff: realUser?.name ?? 'Kasir',
+    })
     if (!result.ok) {
       toast.error('Penyesuaian gagal', { description: result.reason })
       return false
@@ -180,7 +185,7 @@ export function InventoryPage() {
 
     const product = products.find((item) => item.id === values.productId)
     toast.success('Stok diperbarui', {
-      description: `${product?.name ?? 'Produk'} · ${STOCK_MOVEMENT_LABELS[values.mode]}`,
+      description: `${product?.name ?? 'Produk'} · ${STOCK_MOVEMENT_LABELS[values.mode as StockMovementType]}`,
     })
     return true
   }
@@ -336,7 +341,6 @@ export function InventoryPage() {
       <PageHeader
         title="Inventori"
         description="Pantau stok, catat pergerakan barang, dan tangani produk yang menipis."
-        badge={<DemoDataBadge />}
         actions={
           <Button onClick={() => openAdjust()}>
             <SlidersHorizontalIcon aria-hidden="true" />
