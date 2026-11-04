@@ -17,7 +17,7 @@ export function AppHeader({
       <Button
         variant="ghost"
         size="icon"
-        className="md:hidden"
+        className={collapsed ? "md:hidden" : undefined}
         onClick={() => onToggle(!collapsed)}
         aria-label={collapsed ? "Buka sidebar" : "Tutup sidebar"}
         title={collapsed ? "Buka sidebar" : "Tutup sidebar"}
