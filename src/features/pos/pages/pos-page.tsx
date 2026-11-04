@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ShoppingCartIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useBusinessStore } from '@/stores/business-store'
 import { useRealUser } from '@/hooks/use-real-user'
-import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/format'
 import { CartPanel } from '../components/cart-panel'
 import { CheckoutDialog } from '../components/checkout-dialog'
 import { CustomerPickerDialog } from '../components/customer-picker-dialog'
@@ -33,6 +41,7 @@ export default function PosPage() {
   const [tableNumber, setTableNumber] = useState('')
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [memberApplied, setMemberApplied] = useState(true)
+  const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
   const [orderId, setOrderId] = useState(() => createOrderId())
@@ -42,11 +51,13 @@ export default function PosPage() {
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'F2') {
         event.preventDefault()
+        setCartOpen(false)
         setCheckoutOpen((open) => !open)
       }
       if (event.key === 'F9') {
         event.preventDefault()
         cart.clear()
+        setCartOpen(false)
         toast.success('Keranjang dikosongkan')
       }
       if (event.key === '/') {
@@ -57,6 +68,7 @@ export default function PosPage() {
         searchRef.current?.focus()
       }
       if (event.key === 'Escape') {
+        setCartOpen(false)
         setCheckoutOpen(false)
         setCustomerPickerOpen(false)
       }
@@ -146,6 +158,8 @@ export default function PosPage() {
   }
 
   const handleComplete = (sale: any, serverResult?: any) => {
+    setCartOpen(false)
+
     if (mode === 'real' && serverResult?.transaction) {
       recordServerSale(serverResult.transaction)
       cart.clear()
@@ -166,61 +180,93 @@ export default function PosPage() {
   }
 
   return (
-    <div className="h-[calc(100svh-4rem)] md:h-[calc(100svh-5rem)] flex flex-col overflow-hidden">
-      <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 lg:grid-cols-12">
-        <section
-          className={cn(
-            'flex min-w-0 flex-col gap-2 min-h-0',
-            cart.itemCount > 0 ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12',
-          )}
+    <div className="flex h-[calc(100svh-4rem)] flex-col overflow-hidden md:h-[calc(100svh-5rem)]">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        <PosToolbar
+          search={search}
+          onSearchChange={setSearch}
+          inputRef={searchRef}
+          onOpenDrawer={() =>
+            toast('Laci kasir dibuka', {
+              description: 'Simulasi perangkat — belum tersambung.',
+            })
+          }
+        />
+        <ProductCatalog
+          products={filteredProducts}
+          categories={posCategories as any}
+          activeCategory={categoryId}
+          quantities={quantityByProductId}
+          onCategoryChange={setCategoryId}
+          onAdd={cart.add}
+        />
+      </section>
+
+      {cart.itemCount > 0 ? (
+        <Button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="fixed right-4 bottom-4 z-40 h-12 animate-in gap-2 rounded-full px-4 shadow-lg shadow-primary/20 transition-transform duration-200 fade-in hover:scale-[1.02] active:scale-[0.98] md:right-6 md:bottom-6"
+          aria-label={`Buka pesanan saat ini, ${cart.itemCount} item, total ${formatCurrency(totals.total)}`}
+          aria-haspopup="dialog"
+          aria-expanded={cartOpen}
         >
-          <PosToolbar
-            search={search}
-            onSearchChange={setSearch}
-            inputRef={searchRef}
-            onOpenDrawer={() =>
-              toast('Laci kasir dibuka', {
-                description: 'Simulasi perangkat — belum tersambung.',
-              })
-            }
+          <span className="relative">
+            <ShoppingCartIcon className="size-5" />
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[10px] font-bold text-primary ring-2 ring-primary">
+              {cart.itemCount}
+            </span>
+          </span>
+          <span className="flex flex-col items-start leading-none">
+            <span className="text-[10px] font-medium tracking-wide uppercase opacity-80">
+              Pesanan
+            </span>
+            <span className="text-sm font-semibold tabular-nums">
+              {formatCurrency(totals.total)}
+            </span>
+          </span>
+        </Button>
+      ) : null}
+
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+        >
+          <SheetTitle className="sr-only">Pesanan Saat Ini</SheetTitle>
+          <SheetDescription className="sr-only">
+            Detail keranjang, pelanggan, tipe pesanan, dan total pesanan.
+          </SheetDescription>
+          <CartPanel
+            orderId={orderId}
+            lines={cart.lines}
+            itemCount={cart.itemCount}
+            totals={totals}
+            member={effectiveMember}
+            memberEligible={memberEligible}
+            memberDiscountRate={0.1}
+            taxRate={0.1}
+            onToggleMember={() => setMemberApplied((value) => !value)}
+            customerName={customerName}
+            onOpenCustomerPicker={() => setCustomerPickerOpen(true)}
+            orderType={orderType}
+            onOrderTypeChange={setOrderType}
+            tableNumber={tableNumber}
+            onTableNumberChange={setTableNumber}
+            onIncrement={cart.increment}
+            onDecrement={cart.decrement}
+            onRemove={cart.remove}
+            onClear={cart.clear}
+            onCheckout={() => {
+              setCartOpen(false)
+              setCheckoutOpen(true)
+            }}
+            onClose={() => setCartOpen(false)}
+            className="h-full rounded-none border-0"
           />
-          <ProductCatalog
-            products={filteredProducts}
-            categories={posCategories as any}
-            activeCategory={categoryId}
-            quantities={quantityByProductId}
-            onCategoryChange={setCategoryId}
-            onAdd={cart.add}
-          />
-        </section>
-        {cart.itemCount > 0 && (
-          <aside className="hidden lg:flex lg:col-span-4 xl:col-span-3 min-h-0">
-            <CartPanel
-              orderId={orderId}
-              lines={cart.lines}
-              itemCount={cart.itemCount}
-              totals={totals}
-              member={effectiveMember}
-              memberEligible={memberEligible}
-              memberDiscountRate={0.1}
-              taxRate={0.1}
-              onToggleMember={() => setMemberApplied((value) => !value)}
-              customerName={customerName}
-              onOpenCustomerPicker={() => setCustomerPickerOpen(true)}
-              orderType={orderType}
-              onOrderTypeChange={setOrderType}
-              tableNumber={tableNumber}
-              onTableNumberChange={setTableNumber}
-              onIncrement={cart.increment}
-              onDecrement={cart.decrement}
-              onRemove={cart.remove}
-              onClear={cart.clear}
-              onCheckout={() => setCheckoutOpen(true)}
-              className="w-full h-full"
-            />
-          </aside>
-        )}
-      </div>
+        </SheetContent>
+      </Sheet>
       <CheckoutDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
