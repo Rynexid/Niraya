@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useBusinessStore } from '@/stores/business-store'
 import type { BusinessSettings, CompletedSale } from '@/types/business'
 import type { PosCartLine } from '../hooks/use-pos-cart'
 import {
@@ -109,7 +110,7 @@ export type CheckoutDialogProps = {
    * Persist the completed sale. Returns the stored transaction number so the
    * success screen and printed receipt match the transactions table.
    */
-  onComplete: (sale: CompletedSale) => string
+  onComplete: (sale: CompletedSale, serverResult?: any) => string
   onSuccess?: (serverReceipt: any) => void
 }
 
@@ -158,6 +159,7 @@ function CheckoutBody({
   onSuccess,
   onClose,
 }: CheckoutBodyProps) {
+  const mode = useBusinessStore((state) => state.mode)
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [cashInput, setCashInput] = useState('')
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle')
@@ -265,39 +267,63 @@ function CheckoutBody({
     setStatus('processing')
 
     try {
-      const payload = {
-        idempotencyKey: idempotencyKeyRef.current,
-        items: lines.map((line) => ({
-          productId: line.product.id,
-          quantity: line.quantity,
-        })),
-        paymentMethod: method,
-        paymentAmount: method === 'cash' ? cashValue : totals.total,
+      let receiptNumber = sale.orderId
+      let receiptPaidAt = paidAt
+      let receiptCashReceived = cashReceived
+      let receiptChange = change
+      let receiptTotal = totals.total
+
+      if (mode === 'demo') {
+        receiptNumber = onComplete(sale)
+      } else {
+        const payload = {
+          idempotencyKey: idempotencyKeyRef.current,
+          items: lines.map((line) => ({
+            productId: line.product.id,
+            quantity: line.quantity,
+          })),
+          paymentMethod: method,
+          paymentAmount: method === 'cash' ? cashValue : totals.total,
+          customerId,
+          customerName,
+          orderType,
+          tableNumber: dineIn ? tableNumber.trim() : undefined,
+          discount: totals.discount,
+          tax: totals.tax,
+          cashier: cashierName,
+        }
+
+        const res = await fetch('/api/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || 'Checkout gagal')
+        }
+
+        const serverResult = await res.json()
+        const storedNumber = onComplete(sale, serverResult)
+
+        receiptNumber = serverResult.transactionNumber || storedNumber
+        receiptPaidAt = new Date(serverResult.createdAt || paidAt)
+        receiptCashReceived = serverResult.amountPaid ?? cashReceived
+        receiptChange = serverResult.changeAmount ?? change
+        receiptTotal = serverResult.total ?? totals.total
+
+        if (onSuccess) onSuccess(serverResult)
       }
-
-      const res = await fetch('/api/pos/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Checkout failed')
-      }
-
-      const serverResult = await res.json()
-
-      const storedNumber = onComplete(sale)
 
       setReceipt({
-        orderId: serverResult.transactionNumber || storedNumber,
+        orderId: receiptNumber,
         lines,
-        totals,
+        totals: { ...totals, total: receiptTotal },
         method,
-        cashReceived: serverResult.amountPaid ?? cashReceived,
-        change: serverResult.changeAmount ?? change,
-        paidAt: new Date(serverResult.createdAt || paidAt),
+        cashReceived: receiptCashReceived,
+        change: receiptChange,
+        paidAt: receiptPaidAt,
         orderType,
         tableNumber,
         customerName,
@@ -306,9 +332,8 @@ function CheckoutBody({
         receiptFooter: settings.receiptFooter,
       })
       setStatus('success')
-      if (onSuccess) onSuccess(serverResult)
       toast.success('Pembayaran berhasil', {
-        description: `${formatNumber(itemCount)} item • ${formatCurrency(serverResult.total ?? totals.total)}`,
+        description: `${formatNumber(itemCount)} item • ${formatCurrency(receiptTotal)}`,
       })
     } catch (error: any) {
       setStatus('idle')

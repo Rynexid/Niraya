@@ -26,6 +26,7 @@ import { TablePagination } from '@/components/shared/table-pagination'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePagination } from '@/hooks/use-pagination'
+import { useRealUser } from '@/hooks/use-real-user'
 import {
   getCategoryName,
   isLowStock,
@@ -57,7 +58,9 @@ const MOVEMENT_FILTERS = [
 ] as const
 
 export function InventoryPage() {
-  const { products, categories, movements, adjustStock } = useBusinessStore()
+  const { products, categories, movements, adjustStock, mode } =
+    useBusinessStore()
+  const realUser = useRealUser(mode === 'real')
   const searchParams = useSearchParams()
 
   const [tab, setTab] = useState('stock')
@@ -172,7 +175,10 @@ export function InventoryPage() {
   }
 
   const handleAdjust = (values: StockAdjustValues) => {
-    const result = adjustStock({ ...values, staff: CASHIER_NAME })
+    const result = adjustStock({
+      ...values,
+      staff: mode === 'real' ? realUser?.name ?? 'Kasir' : CASHIER_NAME,
+    })
     if (!result.ok) {
       toast.error('Penyesuaian gagal', { description: result.reason })
       return false

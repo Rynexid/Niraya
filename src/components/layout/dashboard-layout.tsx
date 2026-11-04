@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 
 import { AppSidebar } from "@/components/appsidebar"
 import { AppHeader } from "@/components/layout/app-header"
+import { useBusinessStore } from "@/stores/business-store"
 import { cn } from "@/lib/utils"
 
 const SIDEBAR_MIN_WIDTH = 200
@@ -16,10 +17,29 @@ function clampWidth(value: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, value))
 }
 
+function BusinessDataLoader() {
+  return (
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-1.5">
+        <span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-0.2s]" />
+        <span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-0.1s]" />
+        <span className="size-2 animate-bounce rounded-full bg-primary" />
+      </div>
+      <p>Memuat data bisnis...</p>
+    </div>
+  )
+}
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH)
   const [resizing, setResizing] = useState(false)
+  const hydrate = useBusinessStore((state) => state.hydrate)
+  const ready = useBusinessStore((state) => state.ready)
+
+  useEffect(() => {
+    void hydrate()
+  }, [hydrate])
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
@@ -64,7 +84,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       >
         <AppHeader collapsed={collapsed} onToggle={setCollapsed} />
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-          {children}
+          {ready ? children : <BusinessDataLoader />}
         </main>
       </div>
     </div>

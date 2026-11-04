@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useBusinessStore } from '@/stores/business-store'
+import { useRealUser } from '@/hooks/use-real-user'
 import { cn } from '@/lib/utils'
 import { CartPanel } from '../components/cart-panel'
 import { CheckoutDialog } from '../components/checkout-dialog'
@@ -22,6 +23,9 @@ export default function PosPage() {
   const settings = useBusinessStore((state) => state.settings)
   const transactions = useBusinessStore((state) => state.transactions)
   const completeSale = useBusinessStore((state) => state.completeSale)
+  const recordServerSale = useBusinessStore((state) => state.recordServerSale)
+  const mode = useBusinessStore((state) => state.mode)
+  const realUser = useRealUser(mode === 'real')
   const cart = usePosCart(products)
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('all')
@@ -141,7 +145,17 @@ export default function PosPage() {
     setMemberApplied(true)
   }
 
-  const handleComplete = (sale: any) => {
+  const handleComplete = (sale: any, serverResult?: any) => {
+    if (mode === 'real' && serverResult?.transaction) {
+      recordServerSale(serverResult.transaction)
+      cart.clear()
+      setOrderId(createOrderId())
+      setTableNumber('')
+      setCustomerId(null)
+      setMemberApplied(true)
+      return serverResult.transactionNumber as string
+    }
+
     const transaction = completeSale(sale)
     cart.clear()
     setOrderId(createOrderId())
@@ -218,7 +232,7 @@ export default function PosPage() {
         tableNumber={tableNumber}
         customerId={customerId ?? undefined}
         customerName={customerName}
-        cashierName="Kasir"
+        cashierName={mode === 'real' ? realUser?.name ?? 'Kasir' : 'Kasir'}
         settings={settings}
         onTableNumberChange={setTableNumber}
         onComplete={handleComplete}

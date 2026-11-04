@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { toast } from 'sonner'
 
-import { createSeedData, type BusinessSeed } from '@/lib/business-seed'
+import { createSeedData, BUSINESS_SETTINGS, type BusinessSeed } from '@/lib/business-seed'
+import { isDemoMode } from '@/lib/auth-mode'
 import type {
   BusinessSettings,
   Category,
@@ -52,7 +53,14 @@ export type StockMode = 'in' | 'out' | 'adjustment'
 
 export type ActionResult = { ok: true } | { ok: false; reason: string }
 
+export type BusinessMode = 'demo' | 'real'
+
 type BusinessState = BusinessSeed & {
+  mode: BusinessMode
+  ready: boolean
+  hydrate: () => Promise<void>
+  recordServerSale: (transaction: Transaction) => void
+
   addCategory: (input: CategoryInput) => Category
   updateCategory: (id: string, input: CategoryInput) => void
   deleteCategory: (id: string) => ActionResult
@@ -85,6 +93,8 @@ type BusinessState = BusinessSeed & {
   resetDemoData: () => void
 }
 
+const DEMO_STORAGE_KEY = 'niraya.business.demo.v1'
+
 const uid = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 
@@ -99,363 +109,504 @@ const nextTransactionNumber = (transactions: Transaction[]) => {
   return highest + 1
 }
 
+async function sync(action: string, payload: unknown) {
+  if (typeof window === 'undefined') return
+  if (useBusinessStore.getState().mode !== 'real') return
+
+  try {
+    const response = await fetch('/api/business', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, payload }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Gagal menyimpan data.')
+    }
+  } catch (error) {
+    toast.error('Perubahan gagal disimpan', {
+      description:
+        error instanceof Error ? error.message : 'Silakan coba lagi.',
+    })
+    void useBusinessStore.getState().hydrate()
+  }
+}
+
 /**
- * In-browser demo store for the connected business modules.
+ * Business data store.
  *
- * This is the single source of truth while the API is being built: POS sales
- * write transactions, decrement stock and append stock movements, so the
- * dashboard, transactions, inventory and reports all read the same records.
- * Persisted to `localStorage` under `niraya.business.v1`.
+ * - `demo` mode is the in-browser store used by the "Masuk mode demo" login.
+ *   It is persisted to localStorage under `niraya.business.demo.v1`.
+ * - `real` mode is hydrated from the database through `/api/business` and
+ *   every mutation is synced back to the server.
  */
-export const useBusinessStore = create<BusinessState>()(
-  persist(
-    (set, get) => ({
-      ...createSeedData(),
+export const useBusinessStore = create<BusinessState>()((set, get) => ({
+  ...createSeedData(),
+  mode: 'demo',
+  ready: false,
 
-      addCategory: (input) => {
-        const category: Category = {
-          id: uid('cat'),
-          name: input.name.trim(),
-          description: input.description?.trim() || undefined,
-          status: input.status ?? 'active',
-          createdAt: nowIso(),
+  hydrate: async () => {
+    if (typeof window === 'undefined') return
+
+    if (isDemoMode()) {
+      const raw = window.localStorage.getItem(DEMO_STORAGE_KEY)
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          set({ ...parsed, mode: 'demo', ready: true })
+          return
+        } catch {
+          // fall through to a fresh seed
         }
-        set((state) => ({ categories: [...state.categories, category] }))
-        return category
-      },
+      }
 
-      updateCategory: (id, input) => {
-        set((state) => ({
-          categories: state.categories.map((category) =>
-            category.id === id
-              ? {
-                  ...category,
-                  name: input.name.trim(),
-                  description: input.description?.trim() || undefined,
-                  status: input.status ?? category.status,
-                }
-              : category,
-          ),
-        }))
-      },
+      set({ ...createSeedData(), mode: 'demo', ready: true })
+      return
+    }
 
-      deleteCategory: (id) => {
-        const used = get().products.some((product) => product.categoryId === id)
-        if (used) {
-          return {
-            ok: false,
-            reason: 'Kategori masih dipakai produk. Pindahkan produk dulu.',
-          }
-        }
-        set((state) => ({
-          categories: state.categories.filter((category) => category.id !== id),
-        }))
-        return { ok: true }
-      },
+    set({ mode: 'real' })
 
-      addProduct: (input) => {
-        const product: Product = {
-          id: uid('prod'),
-          name: input.name.trim(),
-          sku: input.sku.trim().toUpperCase(),
-          barcode: input.barcode?.trim() || undefined,
-          categoryId: input.categoryId,
-          price: input.price,
-          cost: input.cost,
-          stock: input.stock,
-          minStock: input.minStock,
-          unit: input.unit.trim() || 'pcs',
-          imageUrl: input.imageUrl?.trim() || undefined,
-          status: input.status ?? 'active',
-          createdAt: nowIso(),
-        }
-        set((state) => ({ products: [product, ...state.products] }))
-        return product
-      },
+    try {
+      const response = await fetch('/api/business', { cache: 'no-store' })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Gagal memuat data.')
+      }
 
-      updateProduct: (id, input) => {
-        set((state) => ({
-          products: state.products.map((product) =>
-            product.id === id
-              ? {
-                  ...product,
-                  name: input.name.trim(),
-                  sku: input.sku.trim().toUpperCase(),
-                  barcode: input.barcode?.trim() || undefined,
-                  categoryId: input.categoryId,
-                  price: input.price,
-                  cost: input.cost,
-                  stock: input.stock,
-                  minStock: input.minStock,
-                  unit: input.unit.trim() || 'pcs',
-                  imageUrl: input.imageUrl?.trim() || undefined,
-                  status: input.status ?? product.status,
-                }
-              : product,
-          ),
-        }))
-      },
+      const data = await response.json()
+      set({ ...data, mode: 'real', ready: true })
+    } catch (error) {
+      set({
+        categories: [],
+        products: [],
+        customers: [],
+        staff: [],
+        transactions: [],
+        movements: [],
+        settings: BUSINESS_SETTINGS,
+        mode: 'real',
+        ready: true,
+      })
+      toast.error('Gagal memuat data', {
+        description:
+          error instanceof Error ? error.message : 'Silakan muat ulang halaman.',
+      })
+    }
+  },
 
-      setProductStatus: (id, status) => {
-        set((state) => ({
-          products: state.products.map((product) =>
-            product.id === id ? { ...product, status } : product,
-          ),
-        }))
-      },
+  addCategory: (input) => {
+    const category: Category = {
+      id: uid('cat'),
+      name: input.name.trim(),
+      description: input.description?.trim() || undefined,
+      status: input.status ?? 'active',
+      createdAt: nowIso(),
+    }
+    set((state) => ({ categories: [...state.categories, category] }))
+    void sync('category.create', category)
+    return category
+  },
 
-      deleteProduct: (id) => {
-        const used = get().transactions.some((transaction) =>
-          transaction.items.some((item) => item.productId === id),
-        )
-        if (used) {
-          return {
-            ok: false,
-            reason: 'Produk sudah dipakai transaksi. Arsipkan saja agar riwayat tetap utuh.',
-          }
-        }
-        set((state) => ({
-          products: state.products.filter((product) => product.id !== id),
-        }))
-        return { ok: true }
-      },
+  updateCategory: (id, input) => {
+    set((state) => ({
+      categories: state.categories.map((category) =>
+        category.id === id
+          ? {
+              ...category,
+              name: input.name.trim(),
+              description: input.description?.trim() || undefined,
+              status: input.status ?? category.status,
+            }
+          : category,
+      ),
+    }))
+    const updated = get().categories.find((category) => category.id === id)
+    if (updated) void sync('category.update', updated)
+  },
 
-      addCustomer: (input) => {
-        const customer: Customer = {
-          id: uid('cust'),
-          name: input.name.trim(),
-          phone: input.phone.trim(),
-          email: input.email?.trim() || undefined,
-          notes: input.notes?.trim() || undefined,
-          joinedAt: nowIso(),
-        }
-        set((state) => ({ customers: [customer, ...state.customers] }))
-        return customer
-      },
+  deleteCategory: (id) => {
+    const used = get().products.some((product) => product.categoryId === id)
+    if (used) {
+      return {
+        ok: false,
+        reason: 'Kategori masih dipakai produk. Pindahkan produk dulu.',
+      }
+    }
+    set((state) => ({
+      categories: state.categories.filter((category) => category.id !== id),
+    }))
+    void sync('category.delete', { id })
+    return { ok: true }
+  },
 
-      updateCustomer: (id, input) => {
-        set((state) => ({
-          customers: state.customers.map((customer) =>
-            customer.id === id
-              ? {
-                  ...customer,
-                  name: input.name.trim(),
-                  phone: input.phone.trim(),
-                  email: input.email?.trim() || undefined,
-                  notes: input.notes?.trim() || undefined,
-                }
-              : customer,
-          ),
-        }))
-      },
+  addProduct: (input) => {
+    const product: Product = {
+      id: uid('prod'),
+      name: input.name.trim(),
+      sku: input.sku.trim().toUpperCase(),
+      barcode: input.barcode?.trim() || undefined,
+      categoryId: input.categoryId,
+      price: input.price,
+      cost: input.cost,
+      stock: input.stock,
+      minStock: input.minStock,
+      unit: input.unit.trim() || 'pcs',
+      imageUrl: input.imageUrl?.trim() || undefined,
+      status: input.status ?? 'active',
+      createdAt: nowIso(),
+    }
+    set((state) => ({ products: [product, ...state.products] }))
+    void sync('product.create', product)
+    return product
+  },
 
-      deleteCustomer: (id) => {
-        set((state) => ({
-          customers: state.customers.filter((customer) => customer.id !== id),
-        }))
-      },
+  updateProduct: (id, input) => {
+    set((state) => ({
+      products: state.products.map((product) =>
+        product.id === id
+          ? {
+              ...product,
+              name: input.name.trim(),
+              sku: input.sku.trim().toUpperCase(),
+              barcode: input.barcode?.trim() || undefined,
+              categoryId: input.categoryId,
+              price: input.price,
+              cost: input.cost,
+              stock: input.stock,
+              minStock: input.minStock,
+              unit: input.unit.trim() || 'pcs',
+              imageUrl: input.imageUrl?.trim() || undefined,
+              status: input.status ?? product.status,
+            }
+          : product,
+      ),
+    }))
+    const updated = get().products.find((product) => product.id === id)
+    if (updated) void sync('product.update', updated)
+  },
 
-      addStaff: (input) => {
-        const member: Staff = {
-          id: uid('staff'),
-          name: input.name.trim(),
-          email: input.email.trim().toLowerCase(),
-          role: input.role,
-          status: input.status,
-          joinedAt: nowIso(),
-          lastActive: nowIso(),
-        }
-        set((state) => ({ staff: [...state.staff, member] }))
-        return member
-      },
+  setProductStatus: (id, status) => {
+    set((state) => ({
+      products: state.products.map((product) =>
+        product.id === id ? { ...product, status } : product,
+      ),
+    }))
+    void sync('product.status', { id, status })
+  },
 
-      updateStaff: (id, input) => {
-        set((state) => ({
-          staff: state.staff.map((member) =>
-            member.id === id
-              ? {
-                  ...member,
-                  name: input.name.trim(),
-                  email: input.email.trim().toLowerCase(),
-                  role: input.role,
-                  status: input.status,
-                }
-              : member,
-          ),
-        }))
-      },
+  deleteProduct: (id) => {
+    const used = get().transactions.some((transaction) =>
+      transaction.items.some((item) => item.productId === id),
+    )
+    if (used) {
+      return {
+        ok: false,
+        reason: 'Produk sudah dipakai transaksi. Arsipkan saja agar riwayat tetap utuh.',
+      }
+    }
+    set((state) => ({
+      products: state.products.filter((product) => product.id !== id),
+    }))
+    void sync('product.delete', { id })
+    return { ok: true }
+  },
 
-      deleteStaff: (id) => {
-        const member = get().staff.find((item) => item.id === id)
-        if (member?.role === 'owner') {
-          return { ok: false, reason: 'Akun owner tidak bisa dihapus.' }
-        }
-        set((state) => ({
-          staff: state.staff.filter((item) => item.id !== id),
-        }))
-        return { ok: true }
-      },
+  addCustomer: (input) => {
+    const customer: Customer = {
+      id: uid('cust'),
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      email: input.email?.trim() || undefined,
+      notes: input.notes?.trim() || undefined,
+      joinedAt: nowIso(),
+    }
+    set((state) => ({ customers: [customer, ...state.customers] }))
+    void sync('customer.create', customer)
+    return customer
+  },
 
-      adjustStock: ({ productId, mode, quantity, note, staff }) => {
-        const product = get().products.find((item) => item.id === productId)
-        if (!product) return { ok: false, reason: 'Produk tidak ditemukan.' }
-        if (!Number.isFinite(quantity) || quantity < 0) {
-          return { ok: false, reason: 'Jumlah stok tidak valid.' }
-        }
+  updateCustomer: (id, input) => {
+    set((state) => ({
+      customers: state.customers.map((customer) =>
+        customer.id === id
+          ? {
+              ...customer,
+              name: input.name.trim(),
+              phone: input.phone.trim(),
+              email: input.email?.trim() || undefined,
+              notes: input.notes?.trim() || undefined,
+            }
+          : customer,
+      ),
+    }))
+    const updated = get().customers.find((customer) => customer.id === id)
+    if (updated) void sync('customer.update', updated)
+  },
 
-        const delta =
-          mode === 'in'
-            ? quantity
-            : mode === 'out'
-              ? -quantity
-              : quantity - product.stock
+  deleteCustomer: (id) => {
+    set((state) => ({
+      customers: state.customers.filter((customer) => customer.id !== id),
+    }))
+    void sync('customer.delete', { id })
+  },
 
-        const nextStock = product.stock + delta
-        if (nextStock < 0) {
-          return { ok: false, reason: 'Stok tidak boleh negatif.' }
-        }
+  addStaff: (input) => {
+    const member: Staff = {
+      id: uid('staff'),
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      role: input.role,
+      status: input.status,
+      joinedAt: nowIso(),
+      lastActive: nowIso(),
+    }
+    set((state) => ({ staff: [...state.staff, member] }))
+    void sync('staff.create', member)
+    return member
+  },
 
-        const movement: StockMovement = {
-          id: uid('mv'),
-          productId: product.id,
-          productName: product.name,
-          type: mode,
-          quantity: delta,
-          stockAfter: nextStock,
-          note: note.trim() || 'Penyesuaian stok',
-          staff,
-          createdAt: nowIso(),
-        }
+  updateStaff: (id, input) => {
+    set((state) => ({
+      staff: state.staff.map((member) =>
+        member.id === id
+          ? {
+              ...member,
+              name: input.name.trim(),
+              email: input.email.trim().toLowerCase(),
+              role: input.role,
+              status: input.status,
+            }
+          : member,
+      ),
+    }))
+    const updated = get().staff.find((member) => member.id === id)
+    if (updated) void sync('staff.update', updated)
+  },
 
-        set((state) => ({
-          products: state.products.map((item) =>
-            item.id === product.id ? { ...item, stock: nextStock } : item,
-          ),
-          movements: [movement, ...state.movements],
-        }))
+  deleteStaff: (id) => {
+    const member = get().staff.find((item) => item.id === id)
+    if (member?.role === 'owner') {
+      return { ok: false, reason: 'Akun owner tidak bisa dihapus.' }
+    }
+    set((state) => ({
+      staff: state.staff.filter((item) => item.id !== id),
+    }))
+    void sync('staff.delete', { id })
+    return { ok: true }
+  },
 
-        return { ok: true }
-      },
+  adjustStock: ({ productId, mode, quantity, note, staff }) => {
+    const product = get().products.find((item) => item.id === productId)
+    if (!product) return { ok: false, reason: 'Produk tidak ditemukan.' }
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return { ok: false, reason: 'Jumlah stok tidak valid.' }
+    }
 
-      completeSale: (sale) => {
-        const state = get()
-        const sequence = nextTransactionNumber(state.transactions)
-        const candidate = sale.orderId.startsWith('TRX-')
-          ? sale.orderId
-          : `TRX-${sequence}`
-        const number = state.transactions.some(
-          (transaction) => transaction.number === candidate,
-        )
-          ? `TRX-${sequence}`
-          : candidate
-        const movements: StockMovement[] = []
+    const delta =
+      mode === 'in'
+        ? quantity
+        : mode === 'out'
+          ? -quantity
+          : quantity - product.stock
 
-        const products = state.products.map((product) => {
-          const item = sale.items.find((entry) => entry.productId === product.id)
-          if (!item) return product
+    const nextStock = product.stock + delta
+    if (nextStock < 0) {
+      return { ok: false, reason: 'Stok tidak boleh negatif.' }
+    }
 
-          const nextStock = Math.max(0, product.stock - item.quantity)
-          movements.push({
-            id: uid('mv'),
-            productId: product.id,
-            productName: product.name,
-            type: 'sale',
-            quantity: -item.quantity,
-            stockAfter: nextStock,
-            note: `Penjualan ${sale.orderId}`,
-            staff: sale.cashier,
-            createdAt: sale.paidAt,
-          })
+    const movement: StockMovement = {
+      id: uid('mv'),
+      productId: product.id,
+      productName: product.name,
+      type: mode,
+      quantity: delta,
+      stockAfter: nextStock,
+      note: note.trim() || 'Penyesuaian stok',
+      staff,
+      createdAt: nowIso(),
+    }
 
-          return { ...product, stock: nextStock }
-        })
+    set((state) => ({
+      products: state.products.map((item) =>
+        item.id === product.id ? { ...item, stock: nextStock } : item,
+      ),
+      movements: [movement, ...state.movements],
+    }))
 
-        const transaction: Transaction = {
-          id: `trx-${number.slice(4)}`,
-          number,
-          createdAt: sale.paidAt,
-          cashier: sale.cashier,
-          customerId: sale.customerId,
-          customerName: sale.customerName,
-          orderType: sale.orderType,
-          tableNumber: sale.tableNumber,
-          items: sale.items,
-          subtotal: sale.subtotal,
-          discount: sale.discount,
-          tax: sale.tax,
-          total: sale.total,
-          paymentMethod: sale.paymentMethod,
-          cashReceived: sale.cashReceived,
-          change: sale.change,
-          status: 'completed',
-        }
+    void sync('stock.adjust', {
+      productId,
+      mode,
+      quantity,
+      note: movement.note,
+      staff,
+      movementId: movement.id,
+    })
 
-        set({
-          products,
-          transactions: [transaction, ...state.transactions],
-          movements: [...movements, ...state.movements],
-        })
+    return { ok: true }
+  },
 
-        return transaction
-      },
+  completeSale: (sale) => {
+    const state = get()
+    const sequence = nextTransactionNumber(state.transactions)
+    const candidate = sale.orderId.startsWith('TRX-')
+      ? sale.orderId
+      : `TRX-${sequence}`
+    const number = state.transactions.some(
+      (transaction) => transaction.number === candidate,
+    )
+      ? `TRX-${sequence}`
+      : candidate
+    const movements: StockMovement[] = []
 
-      voidTransaction: (id, reason) => {
-        const state = get()
-        const transaction = state.transactions.find((item) => item.id === id)
-        if (!transaction) return { ok: false, reason: 'Transaksi tidak ditemukan.' }
-        if (transaction.status !== 'completed') {
-          return { ok: false, reason: 'Hanya transaksi selesai yang bisa dibatalkan.' }
-        }
+    const products = state.products.map((product) => {
+      const item = sale.items.find((entry) => entry.productId === product.id)
+      if (!item) return product
 
-        const movements: StockMovement[] = []
-        const products = state.products.map((product) => {
-          const item = transaction.items.find(
-            (entry) => entry.productId === product.id,
-          )
-          if (!item) return product
+      const nextStock = Math.max(0, product.stock - item.quantity)
+      movements.push({
+        id: uid('mv'),
+        productId: product.id,
+        productName: product.name,
+        type: 'sale',
+        quantity: -item.quantity,
+        stockAfter: nextStock,
+        note: `Penjualan ${sale.orderId}`,
+        staff: sale.cashier,
+        createdAt: sale.paidAt,
+      })
 
-          const nextStock = product.stock + item.quantity
-          movements.push({
-            id: uid('mv'),
-            productId: product.id,
-            productName: product.name,
-            type: 'void',
-            quantity: item.quantity,
-            stockAfter: nextStock,
-            note: `Pembatalan ${transaction.number}`,
-            staff: transaction.cashier,
-            createdAt: nowIso(),
-          })
+      return { ...product, stock: nextStock }
+    })
 
-          return { ...product, stock: nextStock }
-        })
+    const transaction: Transaction = {
+      id: `trx-${number.slice(4)}`,
+      number,
+      createdAt: sale.paidAt,
+      cashier: sale.cashier,
+      customerId: sale.customerId,
+      customerName: sale.customerName,
+      orderType: sale.orderType,
+      tableNumber: sale.tableNumber,
+      items: sale.items,
+      subtotal: sale.subtotal,
+      discount: sale.discount,
+      tax: sale.tax,
+      total: sale.total,
+      paymentMethod: sale.paymentMethod,
+      cashReceived: sale.cashReceived,
+      change: sale.change,
+      status: 'completed',
+    }
 
-        set({
-          products,
-          movements: [...movements, ...state.movements],
-          transactions: state.transactions.map((item) =>
-            item.id === id
-              ? { ...item, status: 'voided', voidReason: reason.trim() || 'Dibatalkan' }
-              : item,
-          ),
-        })
+    set({
+      products,
+      transactions: [transaction, ...state.transactions],
+      movements: [...movements, ...state.movements],
+    })
 
-        return { ok: true }
-      },
+    return transaction
+  },
 
-      updateSettings: (patch) => {
-        set((state) => ({ settings: { ...state.settings, ...patch } }))
-      },
+  recordServerSale: (transaction) => {
+    const state = get()
+    const movements: StockMovement[] = []
 
-      resetDemoData: () => {
-        set(createSeedData())
-      },
-    }),
-    {
-      name: 'niraya.business.v1',
-      version: 1,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
+    const products = state.products.map((product) => {
+      const item = transaction.items.find(
+        (entry) => entry.productId === product.id,
+      )
+      if (!item) return product
+
+      const nextStock = Math.max(0, product.stock - item.quantity)
+      movements.push({
+        id: uid('mv'),
+        productId: product.id,
+        productName: product.name,
+        type: 'sale',
+        quantity: -item.quantity,
+        stockAfter: nextStock,
+        note: `Penjualan ${transaction.number}`,
+        staff: transaction.cashier,
+        createdAt: transaction.createdAt,
+      })
+
+      return { ...product, stock: nextStock }
+    })
+
+    set({
+      products,
+      transactions: [
+        transaction,
+        ...state.transactions.filter((item) => item.id !== transaction.id),
+      ],
+      movements: [...movements, ...state.movements],
+    })
+  },
+
+  voidTransaction: (id, reason) => {
+    const state = get()
+    const transaction = state.transactions.find((item) => item.id === id)
+    if (!transaction) return { ok: false, reason: 'Transaksi tidak ditemukan.' }
+    if (transaction.status !== 'completed') {
+      return { ok: false, reason: 'Hanya transaksi selesai yang bisa dibatalkan.' }
+    }
+
+    const movements: StockMovement[] = []
+    const products = state.products.map((product) => {
+      const item = transaction.items.find(
+        (entry) => entry.productId === product.id,
+      )
+      if (!item) return product
+
+      const nextStock = product.stock + item.quantity
+      movements.push({
+        id: uid('mv'),
+        productId: product.id,
+        productName: product.name,
+        type: 'void',
+        quantity: item.quantity,
+        stockAfter: nextStock,
+        note: `Pembatalan ${transaction.number}`,
+        staff: transaction.cashier,
+        createdAt: nowIso(),
+      })
+
+      return { ...product, stock: nextStock }
+    })
+
+    set({
+      products,
+      movements: [...movements, ...state.movements],
+      transactions: state.transactions.map((item) =>
+        item.id === id
+          ? { ...item, status: 'voided', voidReason: reason.trim() || 'Dibatalkan' }
+          : item,
+      ),
+    })
+
+    void sync('transaction.void', { id, reason })
+    return { ok: true }
+  },
+
+  updateSettings: (patch) => {
+    set((state) => ({ settings: { ...state.settings, ...patch } }))
+    void sync('settings.update', patch)
+  },
+
+  resetDemoData: () => {
+    if (get().mode !== 'demo') return
+    set(createSeedData())
+  },
+}))
+
+if (typeof window !== 'undefined') {
+  useBusinessStore.subscribe((state) => {
+    if (state.mode !== 'demo' || !state.ready) return
+
+    window.localStorage.setItem(
+      DEMO_STORAGE_KEY,
+      JSON.stringify({
         categories: state.categories,
         products: state.products,
         customers: state.customers,
@@ -464,6 +615,6 @@ export const useBusinessStore = create<BusinessState>()(
         movements: state.movements,
         settings: state.settings,
       }),
-    },
-  ),
-)
+    )
+  })
+}

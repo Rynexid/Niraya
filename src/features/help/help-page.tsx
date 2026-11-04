@@ -67,7 +67,7 @@ const FAQS = [
   {
     question: 'Apakah data ini tersimpan permanen?',
     answer:
-      'Data demo disimpan di localStorage browser dengan kunci niraya.business.v1. Data bertahan setelah reload, tetapi hilang jika penyimpanan browser dibersihkan. Gunakan Pengaturan → Ekspor data untuk mencadangkan.',
+      'Data demo disimpan di localStorage browser dengan kunci niraya.business.demo.v1. Data bertahan setelah reload, tetapi hilang jika penyimpanan browser dibersihkan. Gunakan Pengaturan → Ekspor data untuk mencadangkan.',
   },
   {
     question: 'Kenapa produk tidak muncul di POS?',
@@ -99,13 +99,42 @@ const SHORTCUTS = [
 
 export function HelpPage() {
   const settings = useBusinessStore((state) => state.settings)
+  const mode = useBusinessStore((state) => state.mode)
+
+  const faqs = FAQS.map((faq) => {
+    if (faq.question === 'Apakah data ini tersimpan permanen?') {
+      return {
+        ...faq,
+        answer:
+          mode === 'demo'
+            ? 'Data demo disimpan di localStorage browser dengan kunci niraya.business.demo.v1. Data bertahan setelah reload, tetapi hilang jika penyimpanan browser dibersihkan.'
+            : 'Data real disimpan di database Neon dan tersinkron dengan server. Setiap perubahan langsung tercatat.',
+      }
+    }
+
+    if (faq.question === 'Apakah login dan hak akses sudah aktif?') {
+      return {
+        ...faq,
+        answer:
+          mode === 'demo'
+            ? 'Sesi demo tidak memakai akun server. Gunakan login biasa untuk mengakses data real dengan Neon Auth.'
+            : 'Ya. Login memakai Neon Auth dan data bisnis hanya bisa diakses oleh sesi yang terautentikasi.',
+      }
+    }
+
+    return faq
+  })
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Bantuan"
         description="Panduan singkat untuk menjalankan operasional harian di Niraya."
-        badge={<Badge variant="outline">Mode demo</Badge>}
+        badge={
+          <Badge variant="outline">
+            {mode === 'demo' ? 'Mode demo' : 'Data real'}
+          </Badge>
+        }
       />
 
       <section className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -157,7 +186,7 @@ export function HelpPage() {
               <h2 className="text-sm font-semibold">Pertanyaan umum</h2>
             </div>
             <div className="divide-y divide-border">
-              {FAQS.map((faq) => (
+              {faqs.map((faq) => (
                 <details key={faq.question} className="group px-4 py-3">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
                     {faq.question}
@@ -240,10 +269,13 @@ export function HelpPage() {
           </section>
 
           <section className="rounded-xl border border-border bg-muted/30 p-4">
-            <h2 className="text-sm font-semibold">Catatan demo</h2>
+            <h2 className="text-sm font-semibold">
+              {mode === 'demo' ? 'Catatan demo' : 'Catatan data real'}
+            </h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Data, pembayaran, dan autentikasi di aplikasi ini adalah contoh
-              untuk pratinjau UI. Tidak ada transaksi uang nyata yang diproses.
+              {mode === 'demo'
+                ? 'Data, pembayaran, dan autentikasi di sesi demo adalah contoh untuk pratinjau UI. Tidak ada transaksi uang nyata yang diproses.'
+                : 'Transaksi tercatat di database, tetapi pembayaran masih berupa pencatatan manual. Belum ada payment gateway nyata yang terhubung.'}
             </p>
           </section>
         </div>

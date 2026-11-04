@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth-client"
+import { clearDemoModeCookie, setDemoModeCookie } from "@/lib/auth-mode"
 import { cn } from "@/lib/utils"
 
 const loginSchema = z.object({
@@ -64,6 +65,7 @@ export function LoginForm({
         return
       }
 
+      clearDemoModeCookie()
       router.push("/dashboard")
       router.refresh()
     } catch (error) {
@@ -76,7 +78,7 @@ export function LoginForm({
   }
 
   const startDemo = () => {
-    document.cookie = "niraya_demo=1; path=/; max-age=86400; samesite=lax"
+    setDemoModeCookie()
     router.push("/dashboard")
     router.refresh()
   }

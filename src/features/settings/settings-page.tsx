@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { initials } from '@/features/customers/customer-detail-sheet'
+import { useRealUser } from '@/hooks/use-real-user'
 import { BUSINESS_SETTINGS } from '@/lib/business-seed'
 import { DEMO_ACCOUNT } from '@/lib/demo-account'
 import { cn } from '@/lib/utils'
@@ -84,10 +85,18 @@ const THEME_OPTIONS = [
 ] as const
 
 export function SettingsPage() {
-  const { settings, updateSettings, resetDemoData } = useBusinessStore()
+  const { settings, updateSettings, resetDemoData, mode } = useBusinessStore()
   const { theme, setTheme } = useTheme()
   const session = useDemoAuthStore((state) => state.session)
-  const currentUser = session ?? DEMO_ACCOUNT
+  const realUser = useRealUser(mode === 'real')
+  const currentUser =
+    mode === 'demo'
+      ? (session ?? DEMO_ACCOUNT)
+      : {
+          name: realUser?.name ?? 'Akun terdaftar',
+          email: realUser?.email ?? '',
+          role: realUser?.role ?? 'user',
+        }
   const [resetOpen, setResetOpen] = useState(false)
 
   const form = useForm<SettingsFormValues>({
@@ -138,7 +147,10 @@ export function SettingsPage() {
     URL.revokeObjectURL(url)
 
     toast.success('Data diekspor', {
-      description: 'File JSON berisi seluruh data demo di browser ini.',
+      description:
+        mode === 'demo'
+          ? 'File JSON berisi data demo di browser ini.'
+          : 'File JSON berisi data bisnis dari database.',
     })
   }
 
@@ -473,15 +485,18 @@ export function SettingsPage() {
                 </Badge>
               </div>
               <p className="mt-3 rounded-lg bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
-                Sesi ini masih demo di browser. Autentikasi Better Auth belum
-                diaktifkan, jadi belum ada pembatasan akses nyata.
+                {mode === 'demo'
+                  ? 'Sesi ini masih demo di browser. Data tidak dikirim ke server.'
+                  : 'Sesi ini terhubung ke database Niraya. Perubahan tersimpan di server.'}
               </p>
             </section>
 
             <section className="rounded-xl border border-border bg-card p-4">
               <h2 className="text-sm font-semibold">Data & sistem</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Seluruh data demo tersimpan di localStorage browser ini.
+                {mode === 'demo'
+                  ? 'Seluruh data demo tersimpan di localStorage browser ini.'
+                  : 'Data bisnis tersimpan di database dan tersinkron dengan server.'}
               </p>
               <div className="mt-3 flex flex-col gap-2">
                 <Button
@@ -493,19 +508,26 @@ export function SettingsPage() {
                   <DownloadIcon aria-hidden="true" />
                   Ekspor data (JSON)
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start text-destructive hover:text-destructive"
-                  onClick={() => setResetOpen(true)}
-                >
-                  <RotateCcwIcon aria-hidden="true" />
-                  Reset data demo
-                </Button>
+                {mode === 'demo' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="justify-start text-destructive hover:text-destructive"
+                    onClick={() => setResetOpen(true)}
+                  >
+                    <RotateCcwIcon aria-hidden="true" />
+                    Reset data demo
+                  </Button>
+                )}
               </div>
               <p className="mt-3 text-[11px] text-muted-foreground">
-                Niraya POS · versi demo · penyimpanan{' '}
-                <span className="font-mono">niraya.business.v1</span>
+                Niraya POS · {mode === 'demo' ? 'versi demo' : 'data real'} ·
+                penyimpanan{' '}
+                <span className="font-mono">
+                  {mode === 'demo'
+                    ? 'niraya.business.demo.v1'
+                    : 'Neon Postgres'}
+                </span>
               </p>
             </section>
           </div>
