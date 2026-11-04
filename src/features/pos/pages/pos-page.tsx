@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { useBusinessStore } from '@/stores/business-store'
+import { cn } from '@/lib/utils'
 import { CartPanel } from '../components/cart-panel'
 import { CheckoutDialog } from '../components/checkout-dialog'
 import { CustomerPickerDialog } from '../components/customer-picker-dialog'
@@ -16,7 +16,6 @@ import { createOrderId } from '../lib/order'
 import type { PosOrderType } from '../lib/order'
 
 export default function PosPage() {
-  const router = useRouter()
   const products = useBusinessStore((state) => state.products)
   const categories = useBusinessStore((state) => state.categories)
   const customers = useBusinessStore((state) => state.customers)
@@ -81,11 +80,11 @@ export default function PosPage() {
 
   const posCategories = useMemo(
     () => [
-      { id: 'all', label: 'Semua', icon: undefined, count: posProducts.length },
+      { id: 'all', label: 'Semua', icon: null, count: posProducts.length },
       ...categories.map((cat) => ({
         id: cat.id,
         label: cat.name,
-        icon: undefined,
+        icon: null,
         count: posProducts.filter((p) => p.categoryId === cat.id).length,
       })),
     ],
@@ -155,7 +154,12 @@ export default function PosPage() {
   return (
     <div className="h-[calc(100svh-4rem)] md:h-[calc(100svh-5rem)] flex flex-col overflow-hidden">
       <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 lg:grid-cols-12">
-        <section className="flex min-w-0 flex-col gap-2 lg:col-span-8 xl:col-span-9 min-h-0">
+        <section
+          className={cn(
+            'flex min-w-0 flex-col gap-2 min-h-0',
+            cart.itemCount > 0 ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12',
+          )}
+        >
           <PosToolbar
             search={search}
             onSearchChange={setSearch}
@@ -175,31 +179,33 @@ export default function PosPage() {
             onAdd={cart.add}
           />
         </section>
-        <aside className="hidden lg:flex lg:col-span-4 xl:col-span-3 min-h-0">
-          <CartPanel
-            orderId={orderId}
-            lines={cart.lines}
-            itemCount={cart.itemCount}
-            totals={totals}
-            member={effectiveMember}
-            memberEligible={memberEligible}
-            memberDiscountRate={0.1}
-            taxRate={0.1}
-            onToggleMember={() => setMemberApplied((value) => !value)}
-            customerName={customerName}
-            onOpenCustomerPicker={() => setCustomerPickerOpen(true)}
-            orderType={orderType}
-            onOrderTypeChange={setOrderType}
-            tableNumber={tableNumber}
-            onTableNumberChange={setTableNumber}
-            onIncrement={cart.increment}
-            onDecrement={cart.decrement}
-            onRemove={cart.remove}
-            onClear={cart.clear}
-            onCheckout={() => setCheckoutOpen(true)}
-            className="w-full h-full"
-          />
-        </aside>
+        {cart.itemCount > 0 && (
+          <aside className="hidden lg:flex lg:col-span-4 xl:col-span-3 min-h-0">
+            <CartPanel
+              orderId={orderId}
+              lines={cart.lines}
+              itemCount={cart.itemCount}
+              totals={totals}
+              member={effectiveMember}
+              memberEligible={memberEligible}
+              memberDiscountRate={0.1}
+              taxRate={0.1}
+              onToggleMember={() => setMemberApplied((value) => !value)}
+              customerName={customerName}
+              onOpenCustomerPicker={() => setCustomerPickerOpen(true)}
+              orderType={orderType}
+              onOrderTypeChange={setOrderType}
+              tableNumber={tableNumber}
+              onTableNumberChange={setTableNumber}
+              onIncrement={cart.increment}
+              onDecrement={cart.decrement}
+              onRemove={cart.remove}
+              onClear={cart.clear}
+              onCheckout={() => setCheckoutOpen(true)}
+              className="w-full h-full"
+            />
+          </aside>
+        )}
       </div>
       <CheckoutDialog
         open={checkoutOpen}
