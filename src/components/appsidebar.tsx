@@ -127,17 +127,21 @@ export function AppSidebar({
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const brandContent = collapsed ? (
-    <div className="flex w-full flex-col items-center">
+    <div className="relative flex h-10 w-full items-center justify-center">
+      <Logo
+        size="sm"
+        label={false}
+        className="transition-opacity duration-150 group-hover/sidebar:opacity-0"
+      />
       <button
         type="button"
         onClick={() => onToggle(false)}
         aria-label="Buka sidebar"
         title="Buka sidebar"
-        className="pointer-events-none mb-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100"
+        className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100"
       >
-        <PanelLeftOpen className="size-4" />
+        <PanelLeftOpen className="size-5" />
       </button>
-      <Logo size="sm" label={false} />
     </div>
   ) : (
     <button
