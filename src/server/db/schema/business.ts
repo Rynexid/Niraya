@@ -1,12 +1,13 @@
 import {
   integer,
   numeric,
-  pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 
-export const customers = pgTable("customers", {
+import { nirayaSchema } from "./schema";
+
+export const customers = nirayaSchema.table("customers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
@@ -15,7 +16,7 @@ export const customers = pgTable("customers", {
   joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const staff = pgTable("staff", {
+export const staff = nirayaSchema.table("staff", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
@@ -25,7 +26,7 @@ export const staff = pgTable("staff", {
   lastActive: timestamp("last_active", { withTimezone: true }),
 });
 
-export const settings = pgTable("settings", {
+export const settings = nirayaSchema.table("settings", {
   id: text("id").primaryKey().default("default"),
   businessName: text("business_name").notNull(),
   address: text("address").notNull().default(""),

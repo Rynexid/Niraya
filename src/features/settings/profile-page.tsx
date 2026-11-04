@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { User, Mail, Building, ShieldCheck, Clock } from "lucide-react"
 
 import { useRealUser } from "@/hooks/use-real-user"
+import { appRoleLabel } from "@/lib/business-labels"
 import { initials } from "@/features/customers/customer-detail-sheet"
 
 export function ProfilePage() {
@@ -12,7 +13,7 @@ export function ProfilePage() {
   const currentUser = {
     name: realUser?.name ?? "Akun terdaftar",
     email: realUser?.email ?? "",
-    role: realUser?.role ?? "Pengguna",
+    role: appRoleLabel(realUser?.role),
   }
 
   return (

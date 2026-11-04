@@ -45,4 +45,18 @@ export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   cashier: 'Memproses penjualan dan pembayaran di POS.',
 }
 
+/** Label role akun aplikasi (termasuk role dasar `user`). */
+export const APP_ROLE_LABELS: Record<string, string> = {
+  user: 'User',
+  cashier: 'Kasir',
+  manager: 'Manager',
+  admin: 'Admin',
+  owner: 'Owner',
+}
+
+export function appRoleLabel(role: string | undefined) {
+  if (!role) return APP_ROLE_LABELS.user
+  return APP_ROLE_LABELS[role] ?? role
+}
+
 export const CASHIER_NAME = 'Sarah Vance'

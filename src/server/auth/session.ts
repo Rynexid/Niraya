@@ -4,14 +4,31 @@ import { db } from "@/server/db";
 import { userProfiles } from "@/server/db/schema/user";
 import { getSession } from "@/lib/auth";
 
-export type UserRole = "owner" | "admin" | "manager" | "cashier";
+/**
+ * Role aplikasi. `user` adalah role dasar untuk setiap akun yang login,
+ * sedangkan role lain adalah role operasional yang diberikan secara eksplisit.
+ */
+export type UserRole = "user" | "owner" | "admin" | "manager" | "cashier";
+
+/** Role bawaan untuk akun yang baru login / belum punya profil. */
+export const DEFAULT_ROLE: UserRole = "user";
 
 const ROLE_RANK: Record<UserRole, number> = {
-  owner: 4,
-  admin: 3,
-  manager: 2,
+  user: 0,
   cashier: 1,
+  manager: 2,
+  admin: 3,
+  owner: 4,
 };
+
+const ROLE_VALUES = Object.keys(ROLE_RANK) as UserRole[];
+
+/** Pastikan nilai role dari database valid; jika tidak, pakai role default. */
+export function normalizeRole(value: unknown): UserRole {
+  return typeof value === "string" && ROLE_VALUES.includes(value as UserRole)
+    ? (value as UserRole)
+    : DEFAULT_ROLE;
+}
 
 /**
  * Cek apakah role pengguna memenuhi role yang dibutuhkan (atau lebih tinggi).
@@ -21,25 +38,71 @@ export function hasRole(userRole: UserRole | undefined, required: UserRole) {
   return ROLE_RANK[userRole] >= ROLE_RANK[required];
 }
 
+type SessionUser = {
+  id?: string | number;
+  name?: string | null;
+  email?: string | null;
+};
+
 /**
- * Ambil role pengguna saat ini dari sesi Neon Auth + tabel user_profiles.
- * Jika profil belum ada, kembali ke "cashier" sebagai default aman.
+ * Pastikan akun yang login punya baris di `auth.user_profiles`. Akun baru
+ * otomatis mendapat role dasar `user`, bukan role operasional.
+ */
+export async function ensureUserProfile(user: SessionUser | null) {
+  if (!user?.id) return null;
+
+  const neonAuthUserId = String(user.id);
+
+  const [existing] = await db
+    .select()
+    .from(userProfiles)
+    .where(eq(userProfiles.neonAuthUserId, neonAuthUserId))
+    .limit(1);
+
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(userProfiles)
+    .values({
+      neonAuthUserId,
+      name: user.name ?? null,
+      email: user.email ?? null,
+      role: DEFAULT_ROLE,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (created) return created;
+
+  // Bisa terjadi race saat dua request pertama datang bersamaan.
+  const [fallback] = await db
+    .select()
+    .from(userProfiles)
+    .where(eq(userProfiles.neonAuthUserId, neonAuthUserId))
+    .limit(1);
+
+  return fallback ?? null;
+}
+
+function readSessionUser(session: unknown): SessionUser | null {
+  const value = session as
+    | { user?: SessionUser; data?: { user?: SessionUser } }
+    | null;
+  return value?.user ?? value?.data?.user ?? null;
+}
+
+/**
+ * Ambil role pengguna saat ini dari sesi Neon Auth + tabel `auth.user_profiles`.
+ * Profil dibuat otomatis dengan role `user` jika belum ada.
  */
 export async function getCurrentUserRole(): Promise<UserRole> {
   const session = await getSession();
-  const user =
-    (session as any)?.user ?? (session as any)?.data?.user ?? null;
+  const user = readSessionUser(session);
 
-  if (!user?.id) return "cashier";
+  if (!user?.id) return DEFAULT_ROLE;
 
-  const [profile] = await db
-    .select({ role: userProfiles.role })
-    .from(userProfiles)
-    .where(eq(userProfiles.neonAuthUserId, String(user.id)))
-    .limit(1);
-
-  const role = profile?.role as UserRole | undefined;
-  return role ?? "cashier";
+  const profile = await ensureUserProfile(user);
+  return normalizeRole(profile?.role);
 }
 
 /**

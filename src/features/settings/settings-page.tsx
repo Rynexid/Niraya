@@ -31,6 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { initials } from '@/features/customers/customer-detail-sheet'
 import { useRealUser } from '@/hooks/use-real-user'
+import { appRoleLabel } from '@/lib/business-labels'
 import { cn } from '@/lib/utils'
 import { useBusinessStore } from '@/stores/business-store'
 import type { BusinessSettings } from '@/types/business'
@@ -85,7 +86,7 @@ export function SettingsPage() {
   const currentUser = {
     name: realUser?.name ?? 'Akun terdaftar',
     email: realUser?.email ?? '',
-    role: realUser?.role ?? 'user',
+    role: appRoleLabel(realUser?.role),
   }
 
   const form = useForm<SettingsFormValues>({
@@ -450,10 +451,7 @@ export function SettingsPage() {
                     {currentUser.name}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {currentUser.role === 'admin'
-                      ? 'Admin'
-                      : currentUser.role}{' '}
-                    · {currentUser.email}
+                    {currentUser.role} · {currentUser.email}
                   </p>
                 </div>
                 <Badge variant="success" className="ml-auto">

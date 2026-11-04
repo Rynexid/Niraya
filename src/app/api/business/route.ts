@@ -3,12 +3,21 @@ import { z } from "zod";
 
 import { getSession } from "@/lib/auth";
 import { getBusinessData, mutateBusiness } from "@/server/business/service";
-import { requireRole, ACTION_ROLES } from "@/server/auth/session";
+import {
+  ensureUserProfile,
+  requireRole,
+  ACTION_ROLES,
+} from "@/server/auth/session";
 
 async function requireSession() {
   const session = await getSession();
   const user =
     (session as any)?.user ?? (session as any)?.data?.user ?? null;
+
+  // Setiap akun yang login otomatis punya profil `auth.user_profiles`
+  // dengan role dasar `user`.
+  if (user?.id) await ensureUserProfile(user);
+
   return user;
 }
 

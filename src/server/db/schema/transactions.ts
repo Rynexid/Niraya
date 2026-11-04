@@ -1,12 +1,13 @@
 import {
   integer,
   numeric,
-  pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 
-export const transactions = pgTable("transactions", {
+import { nirayaSchema } from "./schema";
+
+export const transactions = nirayaSchema.table("transactions", {
   id: text("id").primaryKey(),
   number: text("number").notNull().unique(),
   cashierId: text("cashier_id"),
@@ -27,7 +28,7 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const transactionItems = pgTable("transaction_items", {
+export const transactionItems = nirayaSchema.table("transaction_items", {
   id: text("id").primaryKey(),
   transactionId: text("transaction_id")
     .notNull()
@@ -40,7 +41,7 @@ export const transactionItems = pgTable("transaction_items", {
   lineTotal: numeric("line_total", { precision: 12, scale: 2 }).notNull(),
 });
 
-export const stockMovements = pgTable("stock_movements", {
+export const stockMovements = nirayaSchema.table("stock_movements", {
   id: text("id").primaryKey(),
   productId: text("product_id").notNull(),
   productName: text("product_name").notNull(),
@@ -53,7 +54,7 @@ export const stockMovements = pgTable("stock_movements", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const checkoutIdempotency = pgTable("checkout_idempotency", {
+export const checkoutIdempotency = nirayaSchema.table("checkout_idempotency", {
   key: text("key").primaryKey(),
   requestHash: text("request_hash").notNull(),
   transactionId: text("transaction_id"),

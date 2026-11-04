@@ -1,12 +1,12 @@
 {
-  "id": "df4a8225-5e43-47b9-b836-b4b7f969c77b",
+  "id": "8981d71b-c197-4044-9072-8287517d0049",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.customers": {
+    "niraya.customers": {
       "name": "customers",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -54,9 +54,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.settings": {
+    "niraya.settings": {
       "name": "settings",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -150,9 +150,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.staff": {
+    "niraya.staff": {
       "name": "staff",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -216,9 +216,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.user_profiles": {
+    "auth.user_profiles": {
       "name": "user_profiles",
-      "schema": "",
+      "schema": "auth",
       "columns": {
         "id": {
           "name": "id",
@@ -250,7 +250,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'cashier'"
+          "default": "'user'"
         },
         "created_at": {
           "name": "created_at",
@@ -283,9 +283,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.categories": {
+    "niraya.categories": {
       "name": "categories",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -328,9 +328,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.products": {
+    "niraya.products": {
       "name": "products",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -440,9 +440,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.checkout_idempotency": {
+    "niraya.checkout_idempotency": {
       "name": "checkout_idempotency",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "key": {
           "name": "key",
@@ -490,9 +490,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.stock_movements": {
+    "niraya.stock_movements": {
       "name": "stock_movements",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -564,9 +564,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.transaction_items": {
+    "niraya.transaction_items": {
       "name": "transaction_items",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -623,6 +623,7 @@
           "name": "transaction_items_transaction_id_transactions_id_fk",
           "tableFrom": "transaction_items",
           "tableTo": "transactions",
+          "schemaTo": "niraya",
           "columnsFrom": [
             "transaction_id"
           ],
@@ -639,9 +640,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.transactions": {
+    "niraya.transactions": {
       "name": "transactions",
-      "schema": "",
+      "schema": "niraya",
       "columns": {
         "id": {
           "name": "id",
@@ -775,7 +776,10 @@
     }
   },
   "enums": {},
-  "schemas": {},
+  "schemas": {
+    "auth": "auth",
+    "niraya": "niraya"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},
