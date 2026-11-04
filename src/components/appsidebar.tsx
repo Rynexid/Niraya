@@ -95,13 +95,26 @@ const NAV: NavGroup[] = [
   },
 ]
 
+const MIN_SIDEBAR_WIDTH = 200
+const MAX_SIDEBAR_WIDTH = 360
+
 export function AppSidebar({
   collapsed,
   onToggle,
+  width = 260,
+  onWidthChange,
+  resizing = false,
+  onResizeStart,
+  onResizeEnd,
   className,
 }: {
   collapsed: boolean
   onToggle: (next: boolean) => void
+  width?: number
+  onWidthChange?: (next: number) => void
+  resizing?: boolean
+  onResizeStart?: () => void
+  onResizeEnd?: () => void
   className?: string
 }) {
   const pathname = usePathname()
@@ -125,6 +138,50 @@ export function AppSidebar({
 
   const toggleGroup = (key: string) =>
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+
+  const handleResizePointerDown = (
+    event: React.PointerEvent<HTMLDivElement>
+  ) => {
+    if (collapsed || !onWidthChange) return
+
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = width
+    onResizeStart?.()
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const next = Math.min(
+        MAX_SIDEBAR_WIDTH,
+        Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX)
+      )
+      onWidthChange(next)
+    }
+
+    const stopResizing = () => {
+      onResizeEnd?.()
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", stopResizing)
+      window.removeEventListener("pointercancel", stopResizing)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", stopResizing)
+    window.addEventListener("pointercancel", stopResizing)
+  }
+
+  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onWidthChange) return
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+
+    event.preventDefault()
+    const delta = event.key === "ArrowRight" ? 16 : -16
+    onWidthChange(
+      Math.min(
+        MAX_SIDEBAR_WIDTH,
+        Math.max(MIN_SIDEBAR_WIDTH, width + delta)
+      )
+    )
+  }
 
   const brandContent = collapsed ? (
     <div className="relative flex h-10 w-full items-center justify-center">
@@ -268,10 +325,13 @@ export function AppSidebar({
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex h-svh flex-col justify-between overflow-hidden",
           "border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm print:hidden",
-          "transition-[width,transform] duration-200 ease-in-out",
+          resizing
+            ? "transition-none"
+            : "transition-[width,transform] duration-200 ease-in-out",
+          "md:w-[var(--sidebar-width)]",
           collapsed
-            ? "group/sidebar -translate-x-full md:translate-x-0 md:w-[68px]"
-            : "w-[280px] max-w-[85vw] translate-x-0 md:w-[260px]",
+            ? "group/sidebar -translate-x-full md:translate-x-0"
+            : "w-[280px] max-w-[85vw] translate-x-0",
           className ?? ""
         )}
         aria-label="Main navigation"
@@ -280,7 +340,7 @@ export function AppSidebar({
 
         <nav
           className={cn(
-            "custom-scrollbar flex-1 overflow-y-auto p-3 text-sm",
+            "no-scrollbar flex-1 overflow-y-auto p-3 text-sm",
             collapsed ? "flex flex-col items-center gap-1" : "space-y-4"
           )}
         >
@@ -302,6 +362,21 @@ export function AppSidebar({
             />
           )}
         </footer>
+
+        {!collapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Atur lebar sidebar"
+            aria-valuenow={width}
+            aria-valuemin={MIN_SIDEBAR_WIDTH}
+            aria-valuemax={MAX_SIDEBAR_WIDTH}
+            tabIndex={0}
+            onPointerDown={handleResizePointerDown}
+            onKeyDown={handleResizeKeyDown}
+            className="absolute inset-y-0 right-0 z-20 hidden w-1.5 cursor-col-resize touch-none select-none bg-transparent transition-colors hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none md:block"
+          />
+        )}
       </aside>
     </TooltipProvider>
   )

@@ -1,24 +1,71 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
+
 import { AppSidebar } from "@/components/appsidebar"
 import { AppHeader } from "@/components/layout/app-header"
 import { cn } from "@/lib/utils"
 
+const SIDEBAR_MIN_WIDTH = 200
+const SIDEBAR_MAX_WIDTH = 360
+const SIDEBAR_DEFAULT_WIDTH = 260
+const SIDEBAR_COLLAPSED_WIDTH = 68
+const SIDEBAR_WIDTH_STORAGE_KEY = "niraya.sidebar-width.v1"
+
+function clampWidth(value: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, value))
+}
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH)
+  const [resizing, setResizing] = useState(false)
+
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
+    if (Number.isFinite(saved) && saved > 0) {
+      // oxlint-disable-next-line react/set-state-in-effect -- restore saved width after mount
+      setSidebarWidth(clampWidth(saved))
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SIDEBAR_WIDTH_STORAGE_KEY,
+      String(sidebarWidth)
+    )
+  }, [sidebarWidth])
 
   return (
-    <div className="min-h-svh bg-background">
-      <AppSidebar collapsed={collapsed} onToggle={setCollapsed} />
+    <div
+      className="min-h-svh bg-background"
+      style={
+        {
+          "--sidebar-width": `${
+            collapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+          }px`,
+        } as CSSProperties
+      }
+    >
+      <AppSidebar
+        collapsed={collapsed}
+        onToggle={setCollapsed}
+        width={sidebarWidth}
+        onWidthChange={setSidebarWidth}
+        resizing={resizing}
+        onResizeStart={() => setResizing(true)}
+        onResizeEnd={() => setResizing(false)}
+      />
       <div
         className={cn(
-          "flex min-h-svh flex-col transition-all duration-200",
-          collapsed ? "md:pl-[68px]" : "md:pl-[260px]"
+          "flex min-h-svh flex-col md:pl-[var(--sidebar-width)]",
+          resizing ? "transition-none" : "transition-[padding] duration-200"
         )}
       >
         <AppHeader collapsed={collapsed} onToggle={setCollapsed} />
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+          {children}
+        </main>
       </div>
     </div>
   )
