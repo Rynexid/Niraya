@@ -6,10 +6,9 @@ import {
   EyeIcon,
   EyeOffIcon,
   LockKeyholeIcon,
-  ShieldAlertIcon,
-  SparklesIcon,
 } from 'lucide-react'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
@@ -17,7 +16,6 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { ThemeToggle } from '@/components/shared/theme-toggle'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import {
@@ -29,8 +27,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { DEMO_ACCOUNT } from '@/lib/demo-account'
-import { useDemoAuthStore } from '@/stores/demo-auth-store'
+import { authClient } from '@/lib/auth-client'
 
 const loginSchema = z.object({
   email: z
@@ -49,16 +46,13 @@ type LoginValues = z.infer<typeof loginSchema>
 const FEATURES = [
   'Katalog, stok, dan transaksi memakai satu sumber data.',
   'Laporan dan dashboard dihitung dari penjualan yang tersimpan.',
-  'Semua data demo tetap berada di browser ini.',
+  'Semua data tersimpan di database Niraya.',
 ] as const
 
 /**
- * Demo sign-in screen inspired by the shadcn `login-02` split layout. It is
- * intentionally explicit about being a local preview, not real auth.
+ * Real sign-in screen powered by Neon Auth. Replaces the demo login flow.
  */
 export function LoginPage() {
-  const session = useDemoAuthStore((state) => state.session)
-  const signIn = useDemoAuthStore((state) => state.signIn)
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
@@ -77,35 +71,33 @@ export function LoginPage() {
     },
   })
 
-  if (session) {
-    return null
-  }
+  const onSubmit = async (values: LoginValues) => {
+    try {
+      const result = await authClient.signIn.email(values)
 
-  const fillDemoAccount = () => {
-    form.setValue('email', DEMO_ACCOUNT.email, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    form.setValue('password', DEMO_ACCOUNT.password, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    form.setFocus('password')
-  }
+      if (result?.error) {
+        form.setError('password', {
+          message: result.error.message || 'Email atau kata sandi salah.',
+        })
+        toast.error('Gagal masuk', {
+          description: result.error.message || 'Email atau kata sandi salah.',
+        })
+        return
+      }
 
-  const onSubmit = (values: LoginValues) => {
-    const result = signIn(values.email, values.password)
-
-    if (!result.ok) {
-      form.setError('password', { message: result.reason })
-      toast.error('Gagal masuk', { description: result.reason })
-      return
+      router.push(redirectTo)
+      router.refresh()
+    } catch (error) {
+      form.setError('root', {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Gagal masuk. Silakan coba lagi.',
+      })
+      toast.error('Gagal masuk', {
+        description: 'Silakan coba lagi.',
+      })
     }
-
-    toast.success('Berhasil masuk', {
-      description: `Selamat datang, ${DEMO_ACCOUNT.name}.`,
-    })
-    router.push(redirectTo)
   }
 
   return (
@@ -116,13 +108,6 @@ export function LoginPage() {
         </div>
 
         <div className="max-w-md space-y-6">
-          <Badge
-            variant="outline"
-            className="border-sidebar-border bg-sidebar-accent/40 text-[10px] tracking-wide text-sidebar-foreground/80 uppercase"
-          >
-            <SparklesIcon aria-hidden="true" className="size-3" />
-            Preview build
-          </Badge>
           <div className="space-y-3">
             <h1 className="text-3xl leading-tight font-semibold tracking-tight">
               Satu tempat untuk katalog, penjualan, dan stok.
@@ -149,8 +134,7 @@ export function LoginPage() {
         </div>
 
         <p className="max-w-sm text-xs leading-relaxed text-sidebar-foreground/50">
-          Niraya POS oleh Rynex. Lingkungan demo lokal — bukan koneksi ke
-          database atau layanan pembayaran nyata.
+          Niraya POS oleh Rynex.
         </p>
       </aside>
 
@@ -165,44 +149,12 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Masuk ke Niraya
-              </h1>
-              <Badge variant="secondary" className="text-[10px]">
-                Demo
-              </Badge>
-            </div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Masuk ke Niraya
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Gunakan akun demo di bawah untuk membuka seluruh modul.
+              Gunakan email dan kata sandi akun Anda untuk melanjutkan.
             </p>
-          </div>
-
-          <div className="mt-6 rounded-xl border border-dashed border-border bg-muted/30 p-3">
-            <div className="flex items-start gap-2">
-              <ShieldAlertIcon
-                aria-hidden="true"
-                className="mt-0.5 size-4 shrink-0 text-warning"
-              />
-              <div className="min-w-0 flex-1 text-xs">
-                <p className="font-semibold text-foreground">Akun demo</p>
-                <p className="mt-1 font-mono text-[11px] break-all text-muted-foreground">
-                  {DEMO_ACCOUNT.email}
-                </p>
-                <p className="font-mono text-[11px] text-muted-foreground">
-                  {DEMO_ACCOUNT.password}
-                </p>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3 h-8 w-full text-xs"
-              onClick={fillDemoAccount}
-            >
-              Isi otomatis
-            </Button>
           </div>
 
           <Form {...form}>
@@ -279,8 +231,13 @@ export function LoginPage() {
           </Form>
 
           <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
-            Ini sesi demo yang tersimpan di browser. Tidak ada autentikasi
-            server dan tidak ada data nyata yang dikirim.
+            Belum punya akun?{' '}
+            <Link
+              href="/signup"
+              className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+            >
+              Daftar
+            </Link>
           </p>
         </div>
       </main>

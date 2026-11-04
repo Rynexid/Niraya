@@ -4,28 +4,16 @@ import Link from 'next/link'
 import { User, Mail, Building, ShieldCheck, Clock } from "lucide-react"
 
 import { useRealUser } from "@/hooks/use-real-user"
-import { DEMO_ACCOUNT } from "@/lib/demo-account"
-import { useBusinessStore } from "@/stores/business-store"
-import { useDemoAuthStore } from "@/stores/demo-auth-store"
 import { initials } from "@/features/customers/customer-detail-sheet"
 
 export function ProfilePage() {
-  const mode = useBusinessStore((state) => state.mode)
-  const session = useDemoAuthStore((state) => state.session)
-  const realUser = useRealUser(mode === "real")
+  const realUser = useRealUser(true)
 
-  const currentUser =
-    mode === "demo"
-      ? {
-          name: session?.name ?? DEMO_ACCOUNT.name,
-          email: session?.email ?? DEMO_ACCOUNT.email,
-          role: session?.role ?? DEMO_ACCOUNT.role,
-        }
-      : {
-          name: realUser?.name ?? "Akun terdaftar",
-          email: realUser?.email ?? "",
-          role: realUser?.role ?? "Pengguna",
-        }
+  const currentUser = {
+    name: realUser?.name ?? "Akun terdaftar",
+    email: realUser?.email ?? "",
+    role: realUser?.role ?? "Pengguna",
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +60,7 @@ export function ProfilePage() {
               </div>
               <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">Sesi {mode === 'demo' ? 'demo' : 'terdaftar'}</span>
+                <span className="text-sm">Sesi terdaftar</span>
               </div>
             </div>
           </div>

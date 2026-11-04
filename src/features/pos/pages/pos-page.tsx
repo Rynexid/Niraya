@@ -32,8 +32,7 @@ export default function PosPage() {
   const transactions = useBusinessStore((state) => state.transactions)
   const completeSale = useBusinessStore((state) => state.completeSale)
   const recordServerSale = useBusinessStore((state) => state.recordServerSale)
-  const mode = useBusinessStore((state) => state.mode)
-  const realUser = useRealUser(mode === 'real')
+  const realUser = useRealUser(true)
   const cart = usePosCart(products)
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('all')
@@ -160,7 +159,7 @@ export default function PosPage() {
   const handleComplete = (sale: any, serverResult?: any) => {
     setCartOpen(false)
 
-    if (mode === 'real' && serverResult?.transaction) {
+    if (serverResult?.transaction) {
       recordServerSale(serverResult.transaction)
       cart.clear()
       setOrderId(createOrderId())
@@ -278,7 +277,7 @@ export default function PosPage() {
         tableNumber={tableNumber}
         customerId={customerId ?? undefined}
         customerName={customerName}
-        cashierName={mode === 'real' ? realUser?.name ?? 'Kasir' : 'Kasir'}
+        cashierName={realUser?.name ?? 'Kasir'}
         settings={settings}
         onTableNumberChange={setTableNumber}
         onComplete={handleComplete}

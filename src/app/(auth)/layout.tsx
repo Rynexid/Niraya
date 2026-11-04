@@ -28,7 +28,7 @@ export default function AuthLayout({
         </main>
 
         <footer className="text-center text-xs leading-relaxed text-muted-foreground">
-          Niraya POS oleh Rynex. Data demo tersimpan di browser ini.
+          Niraya POS oleh Rynex.
         </footer>
       </div>
 

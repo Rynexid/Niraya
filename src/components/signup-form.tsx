@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth-client"
-import { clearDemoModeCookie } from "@/lib/auth-mode"
 import { cn } from "@/lib/utils"
 
 const signupSchema = z
@@ -85,7 +84,6 @@ export function SignupForm({
         return
       }
 
-      clearDemoModeCookie()
       router.push("/dashboard")
       router.refresh()
     } catch (error) {

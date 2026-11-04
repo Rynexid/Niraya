@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/sheet'
 import { formatCurrency, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useBusinessStore } from '@/stores/business-store'
 import type { BusinessSettings, CompletedSale } from '@/types/business'
 import type { PosCartLine } from '../hooks/use-pos-cart'
 import {
@@ -42,7 +41,7 @@ import {
   type PosOrderType,
 } from '../lib/order'
 import { printQris, printReceipt } from '../lib/print'
-import { buildQrisPayload, DEMO_MERCHANT } from '../lib/qris'
+import { buildQrisPayload } from '../lib/qris'
 import type { PosTotals } from '../lib/pricing'
 
 type PaymentMethod = 'cash' | 'qris' | 'card'
@@ -162,7 +161,6 @@ function CheckoutBody({
   onSuccess,
   onClose,
 }: CheckoutBodyProps) {
-  const mode = useBusinessStore((state) => state.mode)
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [cashInput, setCashInput] = useState('')
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle')
@@ -276,48 +274,44 @@ function CheckoutBody({
       let receiptChange = change
       let receiptTotal = totals.total
 
-      if (mode === 'demo') {
-        receiptNumber = onComplete(sale)
-      } else {
-        const payload = {
-          idempotencyKey: idempotencyKeyRef.current,
-          items: lines.map((line) => ({
-            productId: line.product.id,
-            quantity: line.quantity,
-          })),
-          paymentMethod: method,
-          paymentAmount: method === 'cash' ? cashValue : totals.total,
-          customerId,
-          customerName,
-          orderType,
-          tableNumber: dineIn ? tableNumber.trim() : undefined,
-          discount: totals.discount,
-          tax: totals.tax,
-          cashier: cashierName,
-        }
-
-        const res = await fetch('/api/pos/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.error || 'Checkout gagal')
-        }
-
-        const serverResult = await res.json()
-        const storedNumber = onComplete(sale, serverResult)
-
-        receiptNumber = serverResult.transactionNumber || storedNumber
-        receiptPaidAt = new Date(serverResult.createdAt || paidAt)
-        receiptCashReceived = serverResult.amountPaid ?? cashReceived
-        receiptChange = serverResult.changeAmount ?? change
-        receiptTotal = serverResult.total ?? totals.total
-
-        if (onSuccess) onSuccess(serverResult)
+      const payload = {
+        idempotencyKey: idempotencyKeyRef.current,
+        items: lines.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        })),
+        paymentMethod: method,
+        paymentAmount: method === 'cash' ? cashValue : totals.total,
+        customerId,
+        customerName,
+        orderType,
+        tableNumber: dineIn ? tableNumber.trim() : undefined,
+        discount: totals.discount,
+        tax: totals.tax,
+        cashier: cashierName,
       }
+
+      const res = await fetch('/api/pos/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Checkout gagal')
+      }
+
+      const serverResult = await res.json()
+      const storedNumber = onComplete(sale, serverResult)
+
+      receiptNumber = serverResult.transactionNumber || storedNumber
+      receiptPaidAt = new Date(serverResult.createdAt || paidAt)
+      receiptCashReceived = serverResult.amountPaid ?? cashReceived
+      receiptChange = serverResult.changeAmount ?? change
+      receiptTotal = serverResult.total ?? totals.total
+
+      if (onSuccess) onSuccess(serverResult)
 
       setReceipt({
         orderId: receiptNumber,
@@ -386,9 +380,9 @@ function CheckoutBody({
       orderId: receipt?.orderId ?? orderId,
       amount: receipt?.totals.total ?? totals.total,
       qrDataUrl,
-      merchantName: DEMO_MERCHANT.name,
-      merchantCity: DEMO_MERCHANT.city,
-      nmid: DEMO_MERCHANT.nmid,
+      merchantName: 'NIRAYA',
+      merchantCity: 'JAKARTA',
+      nmid: 'ID1023456789012',
       logoUrl: '/Logo.png',
     })
 
@@ -801,9 +795,7 @@ function CheckoutBody({
         ) : (
           <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
             <ShieldCheckIcon aria-hidden="true" className="size-3.5" />
-            {mode === 'demo'
-              ? 'Demo — pembayaran disimulasikan, tidak ada transaksi sungguhan.'
-              : 'Pembayaran akan dicatat ke transaksi.'}
+            Pembayaran akan dicatat ke transaksi.
           </p>
         )}
       </footer>
@@ -908,7 +900,7 @@ function QrisPanel({ qrDataUrl, total, onPrint, disabled }: QrisPanelProps) {
           {formatCurrency(total)}
         </p>
         <p className="text-[11px] text-muted-foreground">
-          NMID {DEMO_MERCHANT.nmid}
+          NMID ID1023456789012
         </p>
       </div>
 

@@ -1,7 +1,6 @@
 import { BarChart3Icon, ShoppingBagIcon } from 'lucide-react'
 import Link from 'next/link'
 
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 
@@ -13,8 +12,7 @@ export function DashboardHeader() {
   return (
     <PageHeader
       title="Dashboard"
-      description="Ringkasan performa bisnis dari transaksi dan stok yang tersimpan di perangkat ini."
-      badge={<DemoDataBadge />}
+      description="Ringkasan performa bisnis dari transaksi dan stok yang tersimpan di database."
       actions={
         <>
           <Button variant="outline" asChild>

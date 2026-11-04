@@ -12,7 +12,7 @@ type RealUser = {
 } | null
 
 /**
- * Loads the signed-in Neon Auth user for real (non-demo) sessions.
+ * Loads the signed-in Neon Auth user for real sessions.
  */
 export function useRealUser(enabled: boolean) {
   const [user, setUser] = useState<RealUser>(null)

@@ -29,10 +29,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/business'
-import type { StockMode } from '@/stores/business-store'
+import type { StockAdjustMode } from '@/stores/business-store'
 
 const MODES: {
-  id: StockMode
+  id: StockAdjustMode
   label: string
   hint: string
   icon: typeof ArrowDownToLineIcon
@@ -59,7 +59,7 @@ const MODES: {
 
 export type StockAdjustValues = {
   productId: string
-  mode: StockMode
+  mode: StockAdjustMode
   quantity: number
   note: string
 }
@@ -118,7 +118,7 @@ function StockAdjustBody({
       : (products[0]?.id ?? '')
 
   const [productId, setProductId] = useState(initialProductId)
-  const [mode, setMode] = useState<StockMode>('in')
+  const [mode, setMode] = useState<StockAdjustMode>('in')
   const [quantity, setQuantity] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')

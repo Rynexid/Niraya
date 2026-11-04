@@ -12,7 +12,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -20,7 +19,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth-client"
-import { clearDemoModeCookie, setDemoModeCookie } from "@/lib/auth-mode"
 import { cn } from "@/lib/utils"
 
 const loginSchema = z.object({
@@ -65,7 +63,6 @@ export function LoginForm({
         return
       }
 
-      clearDemoModeCookie()
       router.push("/dashboard")
       router.refresh()
     } catch (error) {
@@ -75,12 +72,6 @@ export function LoginForm({
           : "Gagal masuk. Silakan coba lagi."
       )
     }
-  }
-
-  const startDemo = () => {
-    setDemoModeCookie()
-    router.push("/dashboard")
-    router.refresh()
   }
 
   return (
@@ -161,21 +152,6 @@ export function LoginForm({
       </FieldGroup>
 
       <FieldSeparator>atau</FieldSeparator>
-
-      <div className="space-y-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={startDemo}
-          disabled={isSubmitting}
-        >
-          Masuk mode demo
-        </Button>
-        <FieldDescription className="text-center text-xs">
-          Mode demo tidak memerlukan akun. Data tersimpan di browser ini.
-        </FieldDescription>
-      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         Belum punya akun?{" "}

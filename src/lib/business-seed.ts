@@ -14,11 +14,11 @@ import type {
 } from '@/types/business'
 
 /**
- * Deterministic seed data for the in-browser demo store.
+ * Deterministic seed data used for initial database seeding via `db:seed`.
  *
  * Everything here is illustrative sample data, not real business records. It is
- * generated once on first load and persisted in `localStorage` so the catalog,
- * POS, inventory, transactions and reports stay consistent with each other.
+ * inserted into the database once so the catalog, POS, inventory, transactions
+ * and reports have consistent starting data.
  */
 
 const image = (id: string) =>

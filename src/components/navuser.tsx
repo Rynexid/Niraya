@@ -20,10 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { clearDemoModeCookie } from "@/lib/auth-mode"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-import { useDemoAuthStore } from "@/stores/demo-auth-store"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -49,17 +47,12 @@ export function NavUser({
 }) {
   const router = useRouter()
   const isMobile = useIsMobile()
-  const demoSignOut = useDemoAuthStore((state) => state.signOut)
   const fallback = initials(user.name)
 
   const handleSignOut = async () => {
     try {
       await authClient.signOut()
-    } catch {
-      // Demo sessions have no server session to revoke.
     } finally {
-      demoSignOut()
-      clearDemoModeCookie()
       router.replace("/login")
       router.refresh()
     }

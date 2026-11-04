@@ -33,8 +33,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const parsed = BusinessQuerySchema.safeParse({
-      page: searchParams.get("page"),
-      pageSize: searchParams.get("pageSize"),
+      page: searchParams.get("page") || undefined,
+      pageSize: searchParams.get("pageSize") || undefined,
       search: searchParams.get("search") || undefined,
       categoryId: searchParams.get("categoryId") || undefined,
       status: searchParams.get("status") || undefined,

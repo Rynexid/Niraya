@@ -15,7 +15,6 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
-import { DemoDataBadge } from '@/components/shared/demo-data-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
@@ -239,7 +238,6 @@ export function StaffPage() {
       <PageHeader
         title="Staf"
         description="Kelola anggota tim, peran, dan status akses mereka."
-        badge={<DemoDataBadge />}
         actions={
           <Button onClick={openCreate}>
             <PlusIcon aria-hidden="true" />

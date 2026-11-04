@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 
-import { createSeedData, BUSINESS_SETTINGS, type BusinessSeed } from '@/lib/business-seed'
-import { isDemoMode } from '@/lib/auth-mode'
 import { mutateBusiness } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { BUSINESS_QUERY_KEY } from '@/hooks/use-business'
@@ -14,6 +12,7 @@ import type {
   EntityStatus,
   Product,
   Staff,
+  StaffRole,
   StockMovement,
   Transaction,
 } from '@/types/business'
@@ -48,21 +47,25 @@ export type CustomerInput = {
 export type StaffInput = {
   name: string
   email: string
-  role: Staff['role']
-  status: Staff['status']
+  role: StaffRole
+  status: 'active' | 'inactive'
 }
 
-export type StockMode = 'in' | 'out' | 'adjustment'
+export type ActionResult = { ok: boolean; reason?: string }
 
-export type ActionResult = { ok: true } | { ok: false; reason: string }
+export type StockAdjustMode = 'in' | 'out' | 'adjustment'
 
-export type BusinessMode = 'demo' | 'real'
-
-type BusinessState = BusinessSeed & {
-  mode: BusinessMode
+type BusinessState = {
+  categories: Category[]
+  products: Product[]
+  customers: Customer[]
+  staff: Staff[]
+  transactions: Transaction[]
+  movements: StockMovement[]
+  settings: BusinessSettings
   ready: boolean
+
   hydrate: () => Promise<void>
-  recordServerSale: (transaction: Transaction) => void
 
   addCategory: (input: CategoryInput) => Category
   updateCategory: (id: string, input: CategoryInput) => void
@@ -83,20 +86,18 @@ type BusinessState = BusinessSeed & {
 
   adjustStock: (input: {
     productId: string
-    mode: StockMode
+    mode: 'in' | 'out' | 'adjustment'
     quantity: number
     note: string
     staff: string
   }) => ActionResult
 
   completeSale: (sale: CompletedSale) => Transaction
+  recordServerSale: (transaction: Transaction) => void
   voidTransaction: (id: string, reason: string) => ActionResult
 
   updateSettings: (patch: Partial<BusinessSettings>) => void
-  resetDemoData: () => void
 }
-
-const DEMO_STORAGE_KEY = 'niraya.business.demo.v1'
 
 const uid = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -112,9 +113,12 @@ const nextTransactionNumber = (transactions: Transaction[]) => {
   return highest + 1
 }
 
+/**
+ * Sync a local mutation to the server via /api/business. Real-mode only — there
+ * is no demo fallback.
+ */
 async function sync(action: string, payload: unknown) {
   if (typeof window === 'undefined') return
-  if (useBusinessStore.getState().mode !== 'real') return
 
   try {
     await mutateBusiness(action, payload)
@@ -129,49 +133,32 @@ async function sync(action: string, payload: unknown) {
 }
 
 /**
- * Business data store.
- *
- * - `demo` mode is the in-browser store used by the "Masuk mode demo" login.
- *   It is persisted to localStorage under `niraya.business.demo.v1`.
- * - `real` mode is hydrated from the database through `/api/business` and
- *   every mutation is synced back to the server.
+ * Business data store — real mode only. Data is hydrated from the database
+ * through `/api/business` (via TanStack Query + BusinessDataProvider). Every
+ * mutation is synced back to the server.
  */
 export const useBusinessStore = create<BusinessState>()((set, get) => ({
-  ...createSeedData(),
-  mode: 'demo',
+  categories: [],
+  products: [],
+  customers: [],
+  staff: [],
+  transactions: [],
+  movements: [],
+  settings: {
+    businessName: 'Niraya POS',
+    address: '',
+    phone: '',
+    email: '',
+    currency: 'IDR',
+    timezone: 'Asia/Jakarta',
+    taxRate: 0,
+    memberDiscountRate: 0,
+    lowStockThreshold: 0,
+    receiptFooter: 'Terima kasih • Niraya',
+  },
   ready: false,
 
   hydrate: async () => {
-    if (typeof window === 'undefined') return
-
-    if (isDemoMode()) {
-      const raw = window.localStorage.getItem(DEMO_STORAGE_KEY)
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw)
-          set({ ...parsed, mode: 'demo', ready: true })
-          return
-        } catch {
-          // fall through to a fresh seed
-        }
-      }
-
-      set({ ...createSeedData(), mode: 'demo', ready: true })
-      return
-    }
-
-    set({
-      categories: [],
-      products: [],
-      customers: [],
-      staff: [],
-      transactions: [],
-      movements: [],
-      settings: BUSINESS_SETTINGS,
-      mode: 'real',
-      ready: false,
-    })
-
     // Real data is fetched once by BusinessDataProvider via TanStack Query and
     // written into this store. This store no longer performs its own database
     // fetch so there is a single data source for real sessions.
@@ -576,28 +563,4 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
     set((state) => ({ settings: { ...state.settings, ...patch } }))
     void sync('settings.update', patch)
   },
-
-  resetDemoData: () => {
-    if (get().mode !== 'demo') return
-    set(createSeedData())
-  },
 }))
-
-if (typeof window !== 'undefined') {
-  useBusinessStore.subscribe((state) => {
-    if (state.mode !== 'demo' || !state.ready) return
-
-    window.localStorage.setItem(
-      DEMO_STORAGE_KEY,
-      JSON.stringify({
-        categories: state.categories,
-        products: state.products,
-        customers: state.customers,
-        staff: state.staff,
-        transactions: state.transactions,
-        movements: state.movements,
-        settings: state.settings,
-      }),
-    )
-  })
-}
