@@ -5,6 +5,9 @@ import crypto from "crypto";
 import { db } from "@/server/db";
 import {
   checkoutIdempotency,
+  DEFAULT_BUSINESS_ID,
+  DEFAULT_STORE_ID,
+  inventory,
   products,
   stockMovements,
   transactionItems,
@@ -27,19 +30,27 @@ test("checkout persists transaction, deducts stock, records movement atomically"
   const productId = uniqueId("prod-checkout");
   await db.insert(products).values({
     id: productId,
+    businessId: DEFAULT_BUSINESS_ID,
     name: "Produk Checkout Tes",
     sku: `CO-${Date.now()}`,
     barcode: null,
-    categoryId: "bakery",
-    price: "10000.00",
-    cost: "4000.00",
-    stock: 10,
-    minStock: 1,
+    categoryId: null,
+    sellingPrice: "10000.00",
+    costPrice: "4000.00",
+    stockQuantity: 10,
+    minimumStock: 1,
     unit: "pcs",
     imageUrl: null,
     status: "active",
     createdAt: new Date(),
     updatedAt: new Date(),
+  });
+  await db.insert(inventory).values({
+    businessId: DEFAULT_BUSINESS_ID,
+    storeId: DEFAULT_STORE_ID,
+    productId,
+    stockQuantity: 10,
+    minimumStock: 1,
   });
 
   const idempotencyKey = `checkout-${uniqueId("key")}`;
@@ -65,14 +76,16 @@ test("checkout persists transaction, deducts stock, records movement atomically"
       .for("update");
 
     const product = productRows[0];
-    if (!product || product.stock < 3) {
+    if (!product || product.stockQuantity < 3) {
       throw new Error("Stok tidak cukup");
     }
 
     // Simpan transaksi.
     await tx.insert(transactions).values({
       id: transactionId,
-      number: transactionNumber,
+      businessId: DEFAULT_BUSINESS_ID,
+      storeId: DEFAULT_STORE_ID,
+      transactionNumber,
       cashierId: "test-user",
       cashierName: "Tes Otomatis",
       customerId: null,
@@ -80,14 +93,16 @@ test("checkout persists transaction, deducts stock, records movement atomically"
       orderType: "dine-in",
       tableNumber: null,
       paymentMethod: "cash",
+      paymentStatus: "paid",
       subtotal: subtotal.toFixed(2),
-      discount: discount.toFixed(2),
-      tax: tax.toFixed(2),
-      total: total.toFixed(2),
+      discountTotal: discount.toFixed(2),
+      taxTotal: tax.toFixed(2),
+      grandTotal: total.toFixed(2),
       amountPaid: paid.toFixed(2),
       changeAmount: change.toFixed(2),
       status: "completed",
       createdAt,
+      updatedAt: createdAt,
     });
 
     // Simpan item transaksi.
@@ -95,29 +110,43 @@ test("checkout persists transaction, deducts stock, records movement atomically"
       id: crypto.randomUUID(),
       transactionId,
       productId,
-      name: "Produk Checkout Tes",
+      productName: "Produk Checkout Tes",
       sku: `CO-${Date.now()}`,
       quantity: 3,
       unitPrice: "10000.00",
       lineTotal: "30000.00",
+      costPrice: "4000.00",
     });
 
     // Kurangi stok.
     await tx
       .update(products)
-      .set({ stock: sql`${products.stock} - 3`, updatedAt: new Date() })
+      .set({
+        stockQuantity: sql`${products.stockQuantity} - 3`,
+        updatedAt: new Date(),
+      })
       .where(eq(products.id, productId));
+    await tx
+      .update(inventory)
+      .set({
+        stockQuantity: sql`${inventory.stockQuantity} - 3`,
+        updatedAt: new Date(),
+      })
+      .where(eq(inventory.productId, productId));
 
     // Catat gerakan stok.
     await tx.insert(stockMovements).values({
       id: crypto.randomUUID(),
+      businessId: DEFAULT_BUSINESS_ID,
+      storeId: DEFAULT_STORE_ID,
       productId,
       productName: "Produk Checkout Tes",
-      type: "sale",
+      movementType: "sale",
       quantity: -3,
-      stockAfter: product.stock - 3,
+      stockAfter: product.stockQuantity - 3,
       note: `Penjualan ${transactionNumber}`,
-      staff: "Tes Otomatis",
+      staffName: "Tes Otomatis",
+      referenceType: "transaction",
       referenceId: transactionId,
       createdAt,
     });
@@ -140,8 +169,8 @@ test("checkout persists transaction, deducts stock, records movement atomically"
     .where(eq(transactions.id, transactionId))
     .limit(1);
   expect(txn).toBeDefined();
-  expect(txn.number).toBe(transactionNumber);
-  expect(Number(txn.total)).toBe(30000);
+  expect(txn.transactionNumber).toBe(transactionNumber);
+  expect(Number(txn.grandTotal)).toBe(30000);
   expect(txn.status).toBe("completed");
 
   // Verifikasi item tersimpan.
@@ -158,7 +187,7 @@ test("checkout persists transaction, deducts stock, records movement atomically"
     .from(products)
     .where(eq(products.id, productId))
     .limit(1);
-  expect(afterProduct.stock).toBe(7);
+  expect(afterProduct.stockQuantity).toBe(7);
 
   // Verifikasi gerakan stok dicatat.
   const movements = await db
@@ -166,7 +195,7 @@ test("checkout persists transaction, deducts stock, records movement atomically"
     .from(stockMovements)
     .where(eq(stockMovements.referenceId, transactionId));
   expect(movements.length).toBe(1);
-  expect(movements[0].type).toBe("sale");
+  expect(movements[0].movementType).toBe("sale");
   expect(movements[0].quantity).toBe(-3);
   expect(movements[0].stockAfter).toBe(7);
 
@@ -181,9 +210,9 @@ test("checkout persists transaction, deducts stock, records movement atomically"
 
   // Bersihkan.
   await db.delete(checkoutIdempotency).where(eq(checkoutIdempotency.key, idempotencyKey));
-  await db.delete(transactions).where(eq(transactions.id, transactionId));
-  await db.delete(transactionItems).where(eq(transactionItems.transactionId, transactionId));
   await db.delete(stockMovements).where(eq(stockMovements.referenceId, transactionId));
+  await db.delete(transactions).where(eq(transactions.id, transactionId));
+  await db.delete(inventory).where(eq(inventory.productId, productId));
   await db.delete(products).where(eq(products.id, productId));
 });
 
@@ -191,19 +220,27 @@ test("checkout rollback when stock insufficient", async () => {
   const productId = uniqueId("prod-rollback");
   await db.insert(products).values({
     id: productId,
+    businessId: DEFAULT_BUSINESS_ID,
     name: "Produk Rollback Tes",
     sku: `RB-${Date.now()}`,
     barcode: null,
-    categoryId: "bakery",
-    price: "10000.00",
-    cost: "4000.00",
-    stock: 1, // cuma 1 stok
-    minStock: 1,
+    categoryId: null,
+    sellingPrice: "10000.00",
+    costPrice: "4000.00",
+    stockQuantity: 1, // cuma 1 stok
+    minimumStock: 1,
     unit: "pcs",
     imageUrl: null,
     status: "active",
     createdAt: new Date(),
     updatedAt: new Date(),
+  });
+  await db.insert(inventory).values({
+    businessId: DEFAULT_BUSINESS_ID,
+    storeId: DEFAULT_STORE_ID,
+    productId,
+    stockQuantity: 1,
+    minimumStock: 1,
   });
 
   let threw = false;
@@ -216,14 +253,16 @@ test("checkout rollback when stock insufficient", async () => {
         .for("update");
 
       const product = productRows[0];
-      if (!product || product.stock < 5) {
+      if (!product || product.stockQuantity < 5) {
         throw new Error("Stok tidak cukup");
       }
 
       // Tidak akan sampai sini karena stok tidak cukup.
       await tx.insert(transactions).values({
         id: crypto.randomUUID(),
-        number: "TRX-ROLLBACK",
+        businessId: DEFAULT_BUSINESS_ID,
+        storeId: DEFAULT_STORE_ID,
+        transactionNumber: "TRX-ROLLBACK",
         cashierId: "test-user",
         cashierName: "Tes",
         customerId: null,
@@ -231,14 +270,16 @@ test("checkout rollback when stock insufficient", async () => {
         orderType: "dine-in",
         tableNumber: null,
         paymentMethod: "cash",
+        paymentStatus: "paid",
         subtotal: "50000.00",
-        discount: "0.00",
-        tax: "0.00",
-        total: "50000.00",
+        discountTotal: "0.00",
+        taxTotal: "0.00",
+        grandTotal: "50000.00",
         amountPaid: "50000.00",
         changeAmount: "0.00",
         status: "completed",
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
     });
   } catch (error) {
@@ -253,14 +294,15 @@ test("checkout rollback when stock insufficient", async () => {
     .from(products)
     .where(eq(products.id, productId))
     .limit(1);
-  expect(afterProduct.stock).toBe(1);
+  expect(afterProduct.stockQuantity).toBe(1);
 
   // Tidak boleh ada transaksi yang tersisa.
   const txns = await db
     .select()
     .from(transactions)
-    .where(eq(transactions.number, "TRX-ROLLBACK"));
+    .where(eq(transactions.transactionNumber, "TRX-ROLLBACK"));
   expect(txns.length).toBe(0);
 
+  await db.delete(inventory).where(eq(inventory.productId, productId));
   await db.delete(products).where(eq(products.id, productId));
 });

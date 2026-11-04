@@ -6,7 +6,9 @@ import { db } from "@/server/db";
 import {
   categories,
   checkoutIdempotency,
+  inventory,
   products,
+  stockAdjustments,
   stockMovements,
 } from "@/server/db/schema";
 import type { ActingUser } from "@/server/business/service";
@@ -118,7 +120,6 @@ test("category.create and category.delete via database", async () => {
 });
 
 test("product.create, update, and delete via database", async () => {
-  const categoryId = "bakery";
   const id = uniqueId("prod-test");
 
   const createResult = await mutateBusiness(
@@ -128,7 +129,7 @@ test("product.create, update, and delete via database", async () => {
       name: "Produk Tes",
       sku: `TEST-${Date.now()}`,
       barcode: "1234567890001",
-      categoryId,
+      categoryId: null,
       price: 15000,
       cost: 5000,
       stock: 10,
@@ -148,8 +149,8 @@ test("product.create, update, and delete via database", async () => {
     .limit(1);
   expect(row).toBeDefined();
   expect(row.name).toBe("Produk Tes");
-  expect(Number(row.price)).toBe(15000);
-  expect(row.stock).toBe(10);
+  expect(Number(row.sellingPrice)).toBe(15000);
+  expect(row.stockQuantity).toBe(10);
 
   const updateResult = await mutateBusiness(
     "product.update",
@@ -158,7 +159,7 @@ test("product.create, update, and delete via database", async () => {
       name: "Produk Tes Diupdate",
       sku: row.sku,
       barcode: row.barcode ?? null,
-      categoryId,
+      categoryId: null,
       price: 20000,
       cost: 6000,
       stock: 15,
@@ -177,7 +178,7 @@ test("product.create, update, and delete via database", async () => {
     .where(eq(products.id, id))
     .limit(1);
   expect(updated.name).toBe("Produk Tes Diupdate");
-  expect(Number(updated.stock)).toBe(15);
+  expect(updated.stockQuantity).toBe(15);
 
   const deleteResult = await mutateBusiness("product.delete", { id }, ACTING);
   expect(deleteResult.ok).toBe(true);
@@ -191,7 +192,6 @@ test("product.create, update, and delete via database", async () => {
 });
 
 test("stock.adjust updates product stock and records movement", async () => {
-  const categoryId = "bakery";
   const id = uniqueId("prod-stock");
 
   await mutateBusiness(
@@ -201,7 +201,7 @@ test("stock.adjust updates product stock and records movement", async () => {
       name: "Produk Stok Tes",
       sku: `STOCK-${Date.now()}`,
       barcode: null,
-      categoryId,
+      categoryId: null,
       price: 10000,
       cost: 4000,
       stock: 5,
@@ -231,7 +231,7 @@ test("stock.adjust updates product stock and records movement", async () => {
     .from(products)
     .where(eq(products.id, id))
     .limit(1);
-  expect(row.stock).toBe(15);
+  expect(row.stockQuantity).toBe(15);
 
   const movements = await db
     .select()
@@ -239,11 +239,15 @@ test("stock.adjust updates product stock and records movement", async () => {
     .where(eq(stockMovements.productId, id));
   expect(movements.length).toBeGreaterThanOrEqual(1);
   const last = movements[movements.length - 1];
-  expect(last.type).toBe("in");
+  expect(last.movementType).toBe("in");
   expect(last.quantity).toBe(10);
   expect(last.stockAfter).toBe(15);
 
-  await mutateBusiness("product.delete", { id }, ACTING);
+  // Produk dengan riwayat stok tidak boleh dihapus; bersihkan riwayat dulu.
+  await db.delete(stockAdjustments).where(eq(stockAdjustments.productId, id));
+  await db.delete(stockMovements).where(eq(stockMovements.productId, id));
+  await db.delete(inventory).where(eq(inventory.productId, id));
+  await db.delete(products).where(eq(products.id, id));
 });
 
 test("checkout idempotency key cleanup", async () => {

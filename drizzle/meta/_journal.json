@@ -8,6 +8,13 @@
       "when": 1793801438912,
       "tag": "0000_serious_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793803280566,
+      "tag": "0001_pascalcase_schema",
+      "breakpoints": true
     }
   ]
 }

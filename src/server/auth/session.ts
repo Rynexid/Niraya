@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db";
-import { userProfiles } from "@/server/db/schema/user";
+import { userProfiles } from "@/server/db/schema";
 import { getSession } from "@/lib/auth";
 
 /**
@@ -56,7 +56,7 @@ export async function ensureUserProfile(user: SessionUser | null) {
   const [existing] = await db
     .select()
     .from(userProfiles)
-    .where(eq(userProfiles.neonAuthUserId, neonAuthUserId))
+    .where(eq(userProfiles.userId, neonAuthUserId))
     .limit(1);
 
   if (existing) return existing;
@@ -64,7 +64,7 @@ export async function ensureUserProfile(user: SessionUser | null) {
   const [created] = await db
     .insert(userProfiles)
     .values({
-      neonAuthUserId,
+      userId: neonAuthUserId,
       name: user.name ?? null,
       email: user.email ?? null,
       role: DEFAULT_ROLE,
@@ -78,7 +78,7 @@ export async function ensureUserProfile(user: SessionUser | null) {
   const [fallback] = await db
     .select()
     .from(userProfiles)
-    .where(eq(userProfiles.neonAuthUserId, neonAuthUserId))
+    .where(eq(userProfiles.userId, neonAuthUserId))
     .limit(1);
 
   return fallback ?? null;

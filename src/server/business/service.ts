@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or } from "drizzle-orm";
 
 import { BUSINESS_SETTINGS } from "@/lib/business-seed";
 import type {
@@ -14,11 +14,16 @@ import type {
 } from "@/types/business";
 import { db } from "@/server/db";
 import {
+  businessSettings,
   categories,
   customers,
+  DEFAULT_BUSINESS_ID,
+  DEFAULT_STORE_ID,
+  inventory,
   products,
-  settings,
+  receiptSettings,
   staff,
+  stockAdjustments,
   stockMovements,
   transactionItems,
   transactions,
@@ -55,6 +60,37 @@ export type ActingUser = {
   actingUserRole?: string;
 };
 
+/**
+ * Upsert stok toko default. Tabel `Inventory` adalah sumber kebenaran per
+ * toko; `Products.StockQuantity` tetap diperbarui sebagai cache kompatibilitas
+ * untuk alur POS lama.
+ */
+async function upsertInventory(
+  tx: any,
+  productId: string,
+  stockQuantity: number,
+  minimumStock: number
+) {
+  await tx
+    .insert(inventory)
+    .values({
+      businessId: DEFAULT_BUSINESS_ID,
+      storeId: DEFAULT_STORE_ID,
+      productId,
+      stockQuantity,
+      minimumStock,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [inventory.productId, inventory.storeId],
+      set: {
+        stockQuantity,
+        minimumStock,
+        updatedAt: new Date(),
+      },
+    });
+}
+
 export async function getBusinessData(query: BusinessQuery = {}): Promise<BusinessData> {
   const {
     page = 1,
@@ -70,11 +106,13 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
 
   const offset = (page - 1) * pageSize;
 
-  const transactionFilters: any[] = [];
+  const transactionFilters: any[] = [
+    eq(transactions.businessId, DEFAULT_BUSINESS_ID),
+  ];
   if (search) {
     transactionFilters.push(
       or(
-        ilike(transactions.number, `%${search}%`),
+        ilike(transactions.transactionNumber, `%${search}%`),
         ilike(transactions.customerName, `%${search}%`),
         ilike(transactions.cashierName, `%${search}%`)
       )
@@ -85,7 +123,9 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
   if (from) transactionFilters.push(gte(transactions.createdAt, new Date(from)));
   if (to) transactionFilters.push(lte(transactions.createdAt, new Date(to)));
 
-  const productFilters: any[] = [];
+  const productFilters: any[] = [
+    eq(products.businessId, DEFAULT_BUSINESS_ID),
+  ];
   if (search) {
     productFilters.push(
       or(
@@ -98,7 +138,9 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
   if (categoryId) productFilters.push(eq(products.categoryId, categoryId));
   if (status) productFilters.push(eq(products.status, status));
 
-  const customerFilters: any[] = [];
+  const customerFilters: any[] = [
+    eq(customers.businessId, DEFAULT_BUSINESS_ID),
+  ];
   if (search) {
     customerFilters.push(
       or(
@@ -109,7 +151,7 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
     );
   }
 
-  const staffFilters: any[] = [];
+  const staffFilters: any[] = [eq(staff.businessId, DEFAULT_BUSINESS_ID)];
   if (search) {
     staffFilters.push(
       or(
@@ -126,11 +168,15 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
     customerRows,
     staffRows,
     settingsRows,
+    receiptRows,
     transactionRows,
     itemRows,
     movementRows,
   ] = await Promise.all([
-    db.select().from(categories),
+    db
+      .select()
+      .from(categories)
+      .where(eq(categories.businessId, DEFAULT_BUSINESS_ID)),
     db
       .select()
       .from(products)
@@ -149,7 +195,19 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
       .where(and(...staffFilters))
       .limit(pageSize)
       .offset(offset),
-    db.select().from(settings).where(eq(settings.id, "default")),
+    db
+      .select()
+      .from(businessSettings)
+      .where(eq(businessSettings.id, "default")),
+    db
+      .select()
+      .from(receiptSettings)
+      .where(
+        and(
+          eq(receiptSettings.businessId, DEFAULT_BUSINESS_ID),
+          eq(receiptSettings.storeId, DEFAULT_STORE_ID)
+        )
+      ),
     db
       .select()
       .from(transactions)
@@ -158,15 +216,35 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
       .limit(pageSize)
       .offset(offset),
     db.select().from(transactionItems),
-    db.select().from(stockMovements),
+    db
+      .select()
+      .from(stockMovements)
+      .where(eq(stockMovements.businessId, DEFAULT_BUSINESS_ID)),
   ]);
+
+  const productIds = productRows.map((row) => row.id);
+  const inventoryRows =
+    productIds.length > 0
+      ? await db
+          .select()
+          .from(inventory)
+          .where(
+            and(
+              eq(inventory.storeId, DEFAULT_STORE_ID),
+              inArray(inventory.productId, productIds)
+            )
+          )
+      : [];
+  const inventoryByProduct = new Map(
+    inventoryRows.map((row) => [row.productId, row])
+  );
 
   const itemsByTransaction = new Map<string, TransactionItem[]>();
   for (const item of itemRows) {
     const list = itemsByTransaction.get(item.transactionId) ?? [];
     list.push({
       productId: item.productId,
-      name: item.name,
+      name: item.productName,
       sku: item.sku ?? "",
       quantity: item.quantity,
       unitPrice: number(item.unitPrice),
@@ -178,7 +256,7 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
   const mappedTransactions: Transaction[] = transactionRows
     .map((row) => ({
       id: row.id,
-      number: row.number,
+      number: row.transactionNumber,
       createdAt: iso(row.createdAt),
       cashier: row.cashierName ?? "Kasir",
       customerId: row.customerId ?? undefined,
@@ -190,9 +268,9 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
       tableNumber: row.tableNumber ?? undefined,
       items: itemsByTransaction.get(row.id) ?? [],
       subtotal: number(row.subtotal),
-      discount: number(row.discount),
-      tax: number(row.tax),
-      total: number(row.total),
+      discount: number(row.discountTotal),
+      tax: number(row.taxTotal),
+      total: number(row.grandTotal),
       paymentMethod: row.paymentMethod as Transaction["paymentMethod"],
       cashReceived: row.amountPaid ? number(row.amountPaid) : undefined,
       change: row.changeAmount ? number(row.changeAmount) : undefined,
@@ -205,6 +283,7 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
     );
 
   const settingsRow = settingsRows[0];
+  const receiptRow = receiptRows[0];
   const mappedSettings: BusinessSettings = settingsRow
     ? {
         businessName: settingsRow.businessName,
@@ -216,7 +295,8 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
         taxRate: number(settingsRow.taxRate),
         memberDiscountRate: number(settingsRow.memberDiscountRate),
         lowStockThreshold: settingsRow.lowStockThreshold,
-        receiptFooter: settingsRow.receiptFooter,
+        receiptFooter:
+          receiptRow?.footer ?? settingsRow.legacyReceiptFooter ?? "",
       }
     : BUSINESS_SETTINGS;
 
@@ -231,21 +311,24 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     products: productRows
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        sku: row.sku,
-        barcode: row.barcode ?? undefined,
-        categoryId: row.categoryId ?? "",
-        price: number(row.price),
-        cost: number(row.cost),
-        stock: row.stock,
-        minStock: row.minStock,
-        unit: row.unit,
-        imageUrl: row.imageUrl ?? undefined,
-        status: row.status as EntityStatus,
-        createdAt: iso(row.createdAt),
-      }))
+      .map((row) => {
+        const stockRow = inventoryByProduct.get(row.id);
+        return {
+          id: row.id,
+          name: row.name,
+          sku: row.sku,
+          barcode: row.barcode ?? undefined,
+          categoryId: row.categoryId ?? "",
+          price: number(row.sellingPrice),
+          cost: number(row.costPrice),
+          stock: stockRow?.stockQuantity ?? row.stockQuantity,
+          minStock: stockRow?.minimumStock ?? row.minimumStock,
+          unit: row.unit,
+          imageUrl: row.imageUrl ?? undefined,
+          status: row.status as EntityStatus,
+          createdAt: iso(row.createdAt),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name)),
     customers: customerRows
       .map((row) => ({
@@ -275,13 +358,13 @@ export async function getBusinessData(query: BusinessQuery = {}): Promise<Busine
     movements: movementRows
       .map((row) => ({
         id: row.id,
-        productId: row.productId,
+        productId: row.productId ?? "",
         productName: row.productName,
-        type: row.type as StockMovement["type"],
+        type: row.movementType as StockMovement["type"],
         quantity: row.quantity,
         stockAfter: row.stockAfter,
         note: row.note ?? "",
-        staff: row.staff ?? "Kasir",
+        staff: row.staffName ?? "Kasir",
         createdAt: iso(row.createdAt),
       }))
       .sort(
@@ -304,15 +387,17 @@ export async function mutateBusiness(
   payload: any,
   actingUser: ActingUser = {}
 ) {
-  const { actingUserId: _actingUserId, actingUserRole: _actingUserRole } = actingUser;
+  const { actingUserId, actingUserRole: _actingUserRole } = actingUser;
   switch (action) {
     case "category.create": {
       await db.insert(categories).values({
         id: requiredId(payload.id, "ID kategori"),
+        businessId: DEFAULT_BUSINESS_ID,
         name: String(payload.name ?? "").trim(),
         description: payload.description?.trim() || null,
         status: payload.status ?? "active",
         createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
+        updatedAt: new Date(),
       });
       return { ok: true };
     }
@@ -324,6 +409,7 @@ export async function mutateBusiness(
           name: String(payload.name ?? "").trim(),
           description: payload.description?.trim() || null,
           status: payload.status ?? "active",
+          updatedAt: new Date(),
         })
         .where(eq(categories.id, requiredId(payload.id, "ID kategori")));
       return { ok: true };
@@ -344,43 +430,58 @@ export async function mutateBusiness(
     }
 
     case "product.create": {
-      await db.insert(products).values({
-        id: requiredId(payload.id, "ID produk"),
-        name: String(payload.name ?? "").trim(),
-        sku: String(payload.sku ?? "").trim().toUpperCase(),
-        barcode: payload.barcode?.trim() || null,
-        categoryId: payload.categoryId || null,
-        price: money(Number(payload.price ?? 0)),
-        cost: money(Number(payload.cost ?? 0)),
-        stock: Number(payload.stock ?? 0),
-        minStock: Number(payload.minStock ?? 0),
-        unit: String(payload.unit ?? "pcs").trim() || "pcs",
-        imageUrl: payload.imageUrl?.trim() || null,
-        status: payload.status ?? "active",
-        createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
-        updatedAt: new Date(),
+      const id = requiredId(payload.id, "ID produk");
+      const stock = Number(payload.stock ?? 0);
+      const minStock = Number(payload.minStock ?? 0);
+
+      await db.transaction(async (tx) => {
+        await tx.insert(products).values({
+          id,
+          businessId: DEFAULT_BUSINESS_ID,
+          name: String(payload.name ?? "").trim(),
+          sku: String(payload.sku ?? "").trim().toUpperCase(),
+          barcode: payload.barcode?.trim() || null,
+          categoryId: payload.categoryId || null,
+          sellingPrice: money(Number(payload.price ?? 0)),
+          costPrice: money(Number(payload.cost ?? 0)),
+          stockQuantity: stock,
+          minimumStock: minStock,
+          unit: String(payload.unit ?? "pcs").trim() || "pcs",
+          imageUrl: payload.imageUrl?.trim() || null,
+          status: payload.status ?? "active",
+          createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
+          updatedAt: new Date(),
+        });
+        await upsertInventory(tx, id, stock, minStock);
       });
       return { ok: true };
     }
 
     case "product.update": {
-      await db
-        .update(products)
-        .set({
-          name: String(payload.name ?? "").trim(),
-          sku: String(payload.sku ?? "").trim().toUpperCase(),
-          barcode: payload.barcode?.trim() || null,
-          categoryId: payload.categoryId || null,
-          price: money(Number(payload.price ?? 0)),
-          cost: money(Number(payload.cost ?? 0)),
-          stock: Number(payload.stock ?? 0),
-          minStock: Number(payload.minStock ?? 0),
-          unit: String(payload.unit ?? "pcs").trim() || "pcs",
-          imageUrl: payload.imageUrl?.trim() || null,
-          status: payload.status ?? "active",
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, requiredId(payload.id, "ID produk")));
+      const id = requiredId(payload.id, "ID produk");
+      const stock = Number(payload.stock ?? 0);
+      const minStock = Number(payload.minStock ?? 0);
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(products)
+          .set({
+            name: String(payload.name ?? "").trim(),
+            sku: String(payload.sku ?? "").trim().toUpperCase(),
+            barcode: payload.barcode?.trim() || null,
+            categoryId: payload.categoryId || null,
+            sellingPrice: money(Number(payload.price ?? 0)),
+            costPrice: money(Number(payload.cost ?? 0)),
+            stockQuantity: stock,
+            minimumStock: minStock,
+            unit: String(payload.unit ?? "pcs").trim() || "pcs",
+            imageUrl: payload.imageUrl?.trim() || null,
+            status: payload.status ?? "active",
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, id));
+        await upsertInventory(tx, id, stock, minStock);
+      });
       return { ok: true };
     }
 
@@ -394,28 +495,40 @@ export async function mutateBusiness(
 
     case "product.delete": {
       const id = requiredId(payload.id, "ID produk");
-      const used = await db
-        .select({ id: transactionItems.id })
-        .from(transactionItems)
-        .where(eq(transactionItems.productId, id))
-        .limit(1);
-      if (used.length > 0) {
+      const [usedInTransaction, usedInMovement] = await Promise.all([
+        db
+          .select({ id: transactionItems.id })
+          .from(transactionItems)
+          .where(eq(transactionItems.productId, id))
+          .limit(1),
+        db
+          .select({ id: stockMovements.id })
+          .from(stockMovements)
+          .where(eq(stockMovements.productId, id))
+          .limit(1),
+      ]);
+      if (usedInTransaction.length > 0 || usedInMovement.length > 0) {
         throw new Error(
-          "Produk sudah dipakai transaksi. Arsipkan saja agar riwayat tetap utuh."
+          "Produk sudah punya riwayat transaksi/stok. Arsipkan saja agar riwayat tetap utuh."
         );
       }
-      await db.delete(products).where(eq(products.id, id));
+      await db.transaction(async (tx) => {
+        await tx.delete(inventory).where(eq(inventory.productId, id));
+        await tx.delete(products).where(eq(products.id, id));
+      });
       return { ok: true };
     }
 
     case "customer.create": {
       await db.insert(customers).values({
         id: requiredId(payload.id, "ID pelanggan"),
+        businessId: DEFAULT_BUSINESS_ID,
         name: String(payload.name ?? "").trim(),
         phone: String(payload.phone ?? "").trim(),
         email: payload.email?.trim() || null,
         notes: payload.notes?.trim() || null,
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : new Date(),
+        updatedAt: new Date(),
       });
       return { ok: true };
     }
@@ -428,6 +541,7 @@ export async function mutateBusiness(
           phone: String(payload.phone ?? "").trim(),
           email: payload.email?.trim() || null,
           notes: payload.notes?.trim() || null,
+          updatedAt: new Date(),
         })
         .where(eq(customers.id, requiredId(payload.id, "ID pelanggan")));
       return { ok: true };
@@ -443,12 +557,15 @@ export async function mutateBusiness(
     case "staff.create": {
       await db.insert(staff).values({
         id: requiredId(payload.id, "ID staf"),
+        businessId: DEFAULT_BUSINESS_ID,
+        storeId: DEFAULT_STORE_ID,
         name: String(payload.name ?? "").trim(),
         email: String(payload.email ?? "").trim().toLowerCase(),
         role: payload.role ?? "cashier",
         status: payload.status ?? "active",
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : new Date(),
         lastActive: new Date(),
+        updatedAt: new Date(),
       });
       return { ok: true };
     }
@@ -461,6 +578,7 @@ export async function mutateBusiness(
           email: String(payload.email ?? "").trim().toLowerCase(),
           role: payload.role ?? "cashier",
           status: payload.status ?? "active",
+          updatedAt: new Date(),
         })
         .where(eq(staff.id, requiredId(payload.id, "ID staf")));
       return { ok: true };
@@ -482,39 +600,85 @@ export async function mutateBusiness(
 
     case "stock.adjust": {
       const productId = requiredId(payload.productId, "ID produk");
-      const [product] = await db
-        .select()
-        .from(products)
-        .where(eq(products.id, productId))
-        .limit(1);
-      if (!product) throw new Error("Produk tidak ditemukan.");
-
       const quantity = Number(payload.quantity ?? 0);
       if (!Number.isFinite(quantity) || quantity < 0) {
         throw new Error("Jumlah stok tidak valid.");
       }
 
       const mode = payload.mode as "in" | "out" | "adjustment";
-      const delta =
-        mode === "in" ? quantity : mode === "out" ? -quantity : quantity - product.stock;
-      const nextStock = product.stock + delta;
-      if (nextStock < 0) throw new Error("Stok tidak boleh negatif.");
+      if (!["in", "out", "adjustment"].includes(mode)) {
+        throw new Error("Mode penyesuaian stok tidak valid.");
+      }
 
       await db.transaction(async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(products)
+          .where(eq(products.id, productId))
+          .for("update")
+          .limit(1);
+        if (!product) throw new Error("Produk tidak ditemukan.");
+
+        const [inventoryRow] = await tx
+          .select()
+          .from(inventory)
+          .where(
+            and(
+              eq(inventory.productId, productId),
+              eq(inventory.storeId, DEFAULT_STORE_ID)
+            )
+          )
+          .for("update")
+          .limit(1);
+
+        const currentStock = inventoryRow?.stockQuantity ?? product.stockQuantity;
+        const delta =
+          mode === "in"
+            ? quantity
+            : mode === "out"
+              ? -quantity
+              : quantity - currentStock;
+        const nextStock = currentStock + delta;
+        if (nextStock < 0) throw new Error("Stok tidak boleh negatif.");
+
         await tx
           .update(products)
-          .set({ stock: nextStock, updatedAt: new Date() })
+          .set({ stockQuantity: nextStock, updatedAt: new Date() })
           .where(eq(products.id, productId));
+        await upsertInventory(
+          tx,
+          productId,
+          nextStock,
+          inventoryRow?.minimumStock ?? product.minimumStock
+        );
 
+        const movementId = payload.movementId ?? crypto.randomUUID();
         await tx.insert(stockMovements).values({
-          id: payload.movementId ?? crypto.randomUUID(),
+          id: movementId,
+          businessId: DEFAULT_BUSINESS_ID,
+          storeId: DEFAULT_STORE_ID,
           productId,
           productName: product.name,
-          type: mode,
+          movementType: mode,
           quantity: delta,
           stockAfter: nextStock,
           note: String(payload.note ?? "").trim() || "Penyesuaian stok",
-          staff: String(payload.staff ?? "").trim() || "Kasir",
+          staffName: String(payload.staff ?? "").trim() || "Kasir",
+          referenceType: "adjustment",
+          referenceId: movementId,
+          createdAt: new Date(),
+        });
+
+        await tx.insert(stockAdjustments).values({
+          businessId: DEFAULT_BUSINESS_ID,
+          storeId: DEFAULT_STORE_ID,
+          productId,
+          adjustmentType:
+            mode === "in" ? "increase" : mode === "out" ? "decrease" : "set",
+          quantity,
+          reason: String(payload.note ?? "").trim() || "Penyesuaian stok",
+          notes: String(payload.note ?? "").trim() || null,
+          adjustedByUserId: actingUserId ?? null,
           createdAt: new Date(),
         });
       });
@@ -524,45 +688,72 @@ export async function mutateBusiness(
 
     case "transaction.void": {
       const id = requiredId(payload.id, "ID transaksi");
-      const [transaction] = await db
-        .select()
-        .from(transactions)
-        .where(eq(transactions.id, id))
-        .limit(1);
-      if (!transaction) throw new Error("Transaksi tidak ditemukan.");
-      if (transaction.status !== "completed") {
-        throw new Error("Hanya transaksi selesai yang bisa dibatalkan.");
-      }
-
-      const items = await db
-        .select()
-        .from(transactionItems)
-        .where(eq(transactionItems.transactionId, id));
 
       await db.transaction(async (tx) => {
+        const [transaction] = await tx
+          .select()
+          .from(transactions)
+          .where(eq(transactions.id, id))
+          .for("update")
+          .limit(1);
+        if (!transaction) throw new Error("Transaksi tidak ditemukan.");
+        if (transaction.status !== "completed") {
+          throw new Error("Hanya transaksi selesai yang bisa dibatalkan.");
+        }
+
+        const items = await tx
+          .select()
+          .from(transactionItems)
+          .where(eq(transactionItems.transactionId, id));
+
         for (const item of items) {
           const [product] = await tx
             .select()
             .from(products)
             .where(eq(products.id, item.productId))
+            .for("update")
             .limit(1);
           if (!product) continue;
 
-          const nextStock = product.stock + item.quantity;
+          const [inventoryRow] = await tx
+            .select()
+            .from(inventory)
+            .where(
+              and(
+                eq(inventory.productId, product.id),
+                eq(inventory.storeId, DEFAULT_STORE_ID)
+              )
+            )
+            .for("update")
+            .limit(1);
+
+          const currentStock =
+            inventoryRow?.stockQuantity ?? product.stockQuantity;
+          const nextStock = currentStock + item.quantity;
+
           await tx
             .update(products)
-            .set({ stock: nextStock, updatedAt: new Date() })
+            .set({ stockQuantity: nextStock, updatedAt: new Date() })
             .where(eq(products.id, product.id));
+          await upsertInventory(
+            tx,
+            product.id,
+            nextStock,
+            inventoryRow?.minimumStock ?? product.minimumStock
+          );
 
           await tx.insert(stockMovements).values({
             id: crypto.randomUUID(),
+            businessId: DEFAULT_BUSINESS_ID,
+            storeId: DEFAULT_STORE_ID,
             productId: product.id,
             productName: product.name,
-            type: "void",
+            movementType: "void",
             quantity: item.quantity,
             stockAfter: nextStock,
-            note: `Pembatalan ${transaction.number}`,
-            staff: transaction.cashierName ?? "Kasir",
+            note: `Pembatalan ${transaction.transactionNumber}`,
+            staffName: transaction.cashierName ?? "Kasir",
+            referenceType: "transaction",
             referenceId: transaction.id,
             createdAt: new Date(),
           });
@@ -572,7 +763,9 @@ export async function mutateBusiness(
           .update(transactions)
           .set({
             status: "voided",
+            paymentStatus: "voided",
             voidReason: String(payload.reason ?? "").trim() || "Dibatalkan",
+            updatedAt: new Date(),
           })
           .where(eq(transactions.id, id));
       });
@@ -584,8 +777,8 @@ export async function mutateBusiness(
       const patch = payload as Partial<BusinessSettings>;
       const existing = await db
         .select()
-        .from(settings)
-        .where(eq(settings.id, "default"))
+        .from(businessSettings)
+        .where(eq(businessSettings.id, "default"))
         .limit(1);
 
       const current = existing[0];
@@ -605,19 +798,53 @@ export async function mutateBusiness(
         ),
         lowStockThreshold:
           patch.lowStockThreshold ?? current?.lowStockThreshold ?? 10,
-        receiptFooter:
-          patch.receiptFooter ?? current?.receiptFooter ?? "",
         updatedAt: new Date(),
       };
 
       if (existing.length > 0) {
         await db
-          .update(settings)
+          .update(businessSettings)
           .set(values)
-          .where(eq(settings.id, "default"));
+          .where(eq(businessSettings.id, "default"));
       } else {
-        await db.insert(settings).values({ id: "default", ...values });
+        await db.insert(businessSettings).values({
+          id: "default",
+          businessId: DEFAULT_BUSINESS_ID,
+          ...values,
+        });
       }
+
+      const receiptExisting = await db
+        .select()
+        .from(receiptSettings)
+        .where(
+          and(
+            eq(receiptSettings.businessId, DEFAULT_BUSINESS_ID),
+            eq(receiptSettings.storeId, DEFAULT_STORE_ID)
+          )
+        )
+        .limit(1);
+
+      const footer =
+        patch.receiptFooter ??
+        receiptExisting[0]?.footer ??
+        current?.legacyReceiptFooter ??
+        "";
+
+      if (receiptExisting.length > 0) {
+        await db
+          .update(receiptSettings)
+          .set({ footer, updatedAt: new Date() })
+          .where(eq(receiptSettings.id, receiptExisting[0].id));
+      } else {
+        await db.insert(receiptSettings).values({
+          businessId: DEFAULT_BUSINESS_ID,
+          storeId: DEFAULT_STORE_ID,
+          footer,
+          updatedAt: new Date(),
+        });
+      }
+
       return { ok: true };
     }
 
