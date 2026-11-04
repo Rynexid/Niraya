@@ -14,7 +14,7 @@ export function useBusinessQuery({ enabled }: { enabled: boolean }) {
     queryKey: BUSINESS_QUERY_KEY,
     queryFn: fetchBusinessData,
     enabled,
-    staleTime: 0,
+    staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     retry: 1,

@@ -36,6 +36,7 @@ type CartPanelProps = {
   taxRate: number
   onToggleMember: () => void
   customerName: string
+  onCustomerNameChange: (customerName: string) => void
   onOpenCustomerPicker: () => void
   orderType: PosOrderType
   onOrderTypeChange: (orderType: PosOrderType) => void
@@ -61,6 +62,7 @@ export function CartPanel({
   taxRate,
   onToggleMember,
   customerName,
+  onCustomerNameChange,
   onOpenCustomerPicker,
   orderType,
   onOrderTypeChange,
@@ -188,19 +190,33 @@ export function CartPanel({
         ) : null}
 
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2 py-1.5">
-          <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
-            <UserIcon className="size-3.5 shrink-0 text-primary" />
-            <span className="truncate">{customerName}</span>
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 px-2 text-[11px]"
-            onClick={onOpenCustomerPicker}
+          <label
+            htmlFor="cart-customer-name"
+            className="flex shrink-0 items-center gap-1.5 text-xs font-medium"
           >
-            {memberEligible ? 'Ubah' : 'Pilih'}
-          </Button>
+            <UserIcon className="size-3.5 shrink-0 text-primary" />
+            Pelanggan
+          </label>
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Input
+              id="cart-customer-name"
+              autoComplete="off"
+              value={customerName}
+              onChange={(event) => onCustomerNameChange(event.target.value)}
+              placeholder="Nama pelanggan"
+              aria-label="Nama pelanggan"
+              className="h-7 min-w-0 flex-1 border-border bg-background px-2 text-right text-xs font-medium"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 px-2 text-[11px]"
+              onClick={onOpenCustomerPicker}
+            >
+              {memberEligible ? 'Ubah' : 'Pilih'}
+            </Button>
+          </div>
         </div>
 
         {memberEligible ? (

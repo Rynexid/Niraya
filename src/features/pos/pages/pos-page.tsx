@@ -39,6 +39,7 @@ export default function PosPage() {
   const [orderType, setOrderType] = useState<PosOrderType>('dine-in')
   const [tableNumber, setTableNumber] = useState('')
   const [customerId, setCustomerId] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState('')
   const [memberApplied, setMemberApplied] = useState(true)
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -114,8 +115,9 @@ export default function PosPage() {
     return map
   }, [customers])
 
-  const customerName = customerId ? customerMap.get(customerId) ?? 'Pelanggan umum' : 'Pelanggan umum'
-  const selectedCustomer = customerId ? customers.find((customer) => customer.id === customerId) : undefined
+  const selectedCustomer = customerId
+    ? customers.find((customer) => customer.id === customerId)
+    : undefined
   const memberEligible = Boolean(selectedCustomer)
   const effectiveMember = memberEligible && memberApplied
 
@@ -153,6 +155,9 @@ export default function PosPage() {
 
   const handleSelectCustomer = (nextCustomerId: string | null) => {
     setCustomerId(nextCustomerId)
+    setCustomerName(
+      nextCustomerId ? customerMap.get(nextCustomerId) ?? '' : '',
+    )
     setMemberApplied(true)
   }
 
@@ -165,6 +170,7 @@ export default function PosPage() {
       setOrderId(createOrderId())
       setTableNumber('')
       setCustomerId(null)
+      setCustomerName('')
       setMemberApplied(true)
       return serverResult.transactionNumber as string
     }
@@ -174,6 +180,7 @@ export default function PosPage() {
     setOrderId(createOrderId())
     setTableNumber('')
     setCustomerId(null)
+    setCustomerName('')
     setMemberApplied(true)
     return transaction.number
   }
@@ -248,6 +255,7 @@ export default function PosPage() {
             taxRate={0.1}
             onToggleMember={() => setMemberApplied((value) => !value)}
             customerName={customerName}
+            onCustomerNameChange={setCustomerName}
             onOpenCustomerPicker={() => setCustomerPickerOpen(true)}
             orderType={orderType}
             onOrderTypeChange={setOrderType}
@@ -276,7 +284,7 @@ export default function PosPage() {
         orderType={orderType}
         tableNumber={tableNumber}
         customerId={customerId ?? undefined}
-        customerName={customerName}
+        customerName={customerName || 'Pelanggan umum'}
         cashierName={realUser?.name ?? 'Kasir'}
         settings={settings}
         onTableNumberChange={setTableNumber}
