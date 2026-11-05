@@ -10,15 +10,16 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, paymentsSchema } from "./schema";
+import { businesses } from "./core";
 import { products } from "./products";
 import { paymentMethods, discounts } from "./lookups";
 import { transactionItems, transactions } from "./transactions";
 
-const niraya = nirayaSchema;
+const s = paymentsSchema;
 
 /** Pembayaran untuk transaksi; mendukung pembayaran bertahap. */
-export const payments = niraya.table(
+export const payments = s.table(
   "Payments",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -49,7 +50,7 @@ export const payments = niraya.table(
 );
 
 /** Detail diskon per transaksi. */
-export const transactionDiscounts = niraya.table(
+export const transactionDiscounts = s.table(
   "TransactionDiscounts",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -82,7 +83,7 @@ export const transactionDiscounts = niraya.table(
 );
 
 /** Header refund; transaksi asli tidak dihapus. */
-export const transactionRefunds = niraya.table(
+export const transactionRefunds = s.table(
   "TransactionRefunds",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -115,7 +116,7 @@ export const transactionRefunds = niraya.table(
 );
 
 /** Baris refund; merujuk item transaksi asli. */
-export const transactionRefundItems = niraya.table(
+export const transactionRefundItems = s.table(
   "TransactionRefundItems",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

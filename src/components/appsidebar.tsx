@@ -120,6 +120,8 @@ export function AppSidebar({
 }) {
   const pathname = usePathname()
   const realUser = useRealUser(true)
+  const userRole = realUser?.role
+  const isRegularUser = userRole === "user" || userRole === undefined
   const currentUser = {
     name: realUser?.name ?? "Akun terdaftar",
     email: realUser?.email ?? "",
@@ -131,6 +133,11 @@ export function AppSidebar({
     business: true,
     preferences: true,
   })
+
+  // Filter nav items based on role
+  const filteredNav = isRegularUser 
+    ? [] 
+    : NAV
 
   // Tutup sidebar otomatis di mobile setiap kali berpindah halaman.
   useEffect(() => {
@@ -221,7 +228,7 @@ export function AppSidebar({
 
   const navContent = collapsed ? (
     <div className="flex flex-col items-center gap-1">
-      {NAV.map((group, groupIndex) => (
+      {filteredNav.map((group, groupIndex) => (
         <Fragment key={group.key}>
           {groupIndex > 0 && (
             <div
@@ -259,8 +266,8 @@ export function AppSidebar({
         </Fragment>
       ))}
     </div>
-  ) : (
-    NAV.map((group) => {
+  ) : filteredNav.length > 0 ? (
+    filteredNav.map((group) => {
       const groupOpen = group.collapsible ? !!openGroups[group.key] : true
       const header = (
         <div className="flex w-full items-center justify-between px-2 py-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -316,7 +323,7 @@ export function AppSidebar({
         </div>
       )
     })
-  )
+  ) : null
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -351,7 +358,15 @@ export function AppSidebar({
             collapsed ? "flex flex-col items-center gap-1" : "space-y-4"
           )}
         >
-          {navContent}
+          {isRegularUser ? (
+            <div className="space-y-1 px-1 text-sm text-muted-foreground">
+              <Link href="/profile" className="block rounded-lg px-2 py-2 hover:bg-accent hover:text-foreground">Profil</Link>
+            </div>
+          ) : Array.isArray(navContent) && navContent.length > 0 ? navContent : (
+            <div className="space-y-1 px-1 text-sm text-muted-foreground">
+              <Link href="/profile" className="block rounded-lg px-2 py-2 hover:bg-accent hover:text-foreground">Profil</Link>
+            </div>
+          )}
         </nav>
 
         <footer className="shrink-0 border-t border-sidebar-border p-3">

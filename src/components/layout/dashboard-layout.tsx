@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useState, type CSSProperties } from "react"
+import { usePathname } from "next/navigation"
 
 import { AppSidebar } from "@/components/appsidebar"
 import { AppHeader } from "@/components/layout/app-header"
 import { Providers } from "@/components/providers"
 import { useBusinessStore } from "@/stores/business-store"
+import { useRealUser } from "@/hooks/use-real-user"
 import { cn } from "@/lib/utils"
 
 const SIDEBAR_MIN_WIDTH = 200
@@ -37,10 +39,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [resizing, setResizing] = useState(false)
   const hydrate = useBusinessStore((state) => state.hydrate)
   const ready = useBusinessStore((state) => state.ready)
+  const realUser = useRealUser(true)
+  const pathname = usePathname()
+  const isRegularUser = realUser?.role === "user"
+  const isProfileRoute = pathname === "/profile" || pathname.startsWith("/(profile)") || pathname.startsWith("/profile") || pathname.startsWith("/user-profile")
 
   useEffect(() => {
+    if (isRegularUser && isProfileRoute) return
     void hydrate()
-  }, [hydrate])
+  }, [hydrate, isRegularUser, isProfileRoute])
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
@@ -56,6 +63,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       String(sidebarWidth)
     )
   }, [sidebarWidth])
+
+  const shouldSkipBusinessLoad = isRegularUser && isProfileRoute
 
   return (
     <div
@@ -86,7 +95,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <AppHeader collapsed={collapsed} onToggle={setCollapsed} />
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">
           <Providers>
-            {ready ? children : <BusinessDataLoader />}
+            {shouldSkipBusinessLoad || ready ? children : <BusinessDataLoader />}
           </Providers>
         </main>
       </div>

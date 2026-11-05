@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db";
-import { userProfiles } from "@/server/db/schema";
+import { userProfiles, roles } from "@/server/db/schema";
 import { getSession } from "@/lib/auth";
 
 /**
@@ -45,7 +45,7 @@ type SessionUser = {
 };
 
 /**
- * Pastikan akun yang login punya baris di `auth.user_profiles`. Akun baru
+ * Pastikan akun yang login punya baris di `core.UserProfiles`. Akun baru
  * otomatis mendapat role dasar `user`, bukan role operasional.
  */
 export async function ensureUserProfile(user: SessionUser | null) {
@@ -60,6 +60,18 @@ export async function ensureUserProfile(user: SessionUser | null) {
     .limit(1);
 
   if (existing) return existing;
+
+  // Pastikan role 'user' ada di tabel Roles untuk memenuhi foreign key
+  await db
+    .insert(roles)
+    .values({
+      code: "user",
+      name: "User",
+      description: "Akun dasar",
+      rank: 0,
+      isSystem: true,
+    })
+    .onConflictDoNothing();
 
   const [created] = await db
     .insert(userProfiles)
@@ -92,7 +104,7 @@ function readSessionUser(session: unknown): SessionUser | null {
 }
 
 /**
- * Ambil role pengguna saat ini dari sesi Neon Auth + tabel `auth.user_profiles`.
+ * Ambil role pengguna saat ini dari sesi Neon Auth + tabel `core.UserProfiles`.
  * Profil dibuat otomatis dengan role `user` jika belum ada.
  */
 export async function getCurrentUserRole(): Promise<UserRole> {
@@ -145,4 +157,6 @@ export const ACTION_ROLES: Record<string, UserRole> = {
   "transaction.void": "manager",
   // Pengaturan
   "settings.update": "admin",
+  // Demo/Presentasi
+  "demo.seed": "owner",
 };

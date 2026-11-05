@@ -10,17 +10,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, transactionsSchema } from "./schema";
 import { businesses, stores } from "./core";
 import { customers } from "./customers";
 import { staff } from "./staff";
-import { productVariants, products } from "./products";
+import { products, productVariants } from "./products";
 import { paymentMethods, taxRates } from "./lookups";
 
-const niraya = nirayaSchema;
+const s = transactionsSchema;
 
 /** Header transaksi penjualan. */
-export const transactions = niraya.table(
+export const transactions = s.table(
   "Transactions",
   {
     id: text("Id").primaryKey(),
@@ -107,7 +107,7 @@ export const transactions = niraya.table(
 );
 
 /** Baris transaksi; menyimpan snapshot nama, SKU, dan harga saat transaksi. */
-export const transactionItems = niraya.table(
+export const transactionItems = s.table(
   "TransactionItems",
   {
     id: text("Id").primaryKey(),
@@ -154,7 +154,7 @@ export const transactionItems = niraya.table(
 );
 
 /** Idempotency key untuk checkout POS. */
-export const checkoutIdempotency = niraya.table(
+export const checkoutIdempotency = s.table(
   "CheckoutIdempotency",
   {
     key: text("Key").primaryKey(),

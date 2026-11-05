@@ -63,7 +63,8 @@ export function LoginForm({
         return
       }
 
-      router.push("/dashboard")
+      const profile = await fetch("/api/me").then((response) => response.json())
+      router.push(profile.user?.role === "user" ? "/profile" : "/dashboard")
       router.refresh()
     } catch (error) {
       setFormError(

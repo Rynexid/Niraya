@@ -10,19 +10,19 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, inventorySchema } from "./schema";
 import { businesses, stores } from "./core";
 import { products } from "./products";
 import { staff } from "./staff";
 
-const niraya = nirayaSchema;
+const s = inventorySchema;
 
 /**
  * Stok per produk per toko. Tabel ini adalah sumber kebenaran untuk stok
  * multi-outlet. `Products.StockQuantity` dipertahankan sebagai cache toko
  * default agar kompatibel dengan alur POS lama.
  */
-export const inventory = niraya.table(
+export const inventory = s.table(
   "Inventory",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -59,7 +59,7 @@ export const inventory = niraya.table(
 );
 
 /** Ledger setiap perubahan stok. Tidak boleh dihapus saat produk diarsipkan. */
-export const stockMovements = niraya.table(
+export const stockMovements = s.table(
   "StockMovements",
   {
     id: text("Id").primaryKey(),
@@ -105,7 +105,7 @@ export const stockMovements = niraya.table(
 );
 
 /** Audit manual stock adjustment dengan alasan. */
-export const stockAdjustments = niraya.table(
+export const stockAdjustments = s.table(
   "StockAdjustments",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

@@ -12,13 +12,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, productsSchema } from "./schema";
 import { businesses, stores } from "./core";
 
-const niraya = nirayaSchema;
+const s = productsSchema;
 
 /** Kategori produk. Mendukung kategori bertingkat. */
-export const categories = niraya.table(
+export const categories = s.table(
   "Categories",
   {
     id: text("Id").primaryKey(),
@@ -55,7 +55,7 @@ export const categories = niraya.table(
 );
 
 /** Produk katalog. SKU unik dalam lingkup bisnis. */
-export const products = niraya.table(
+export const products = s.table(
   "Products",
   {
     id: text("Id").primaryKey(),
@@ -111,7 +111,7 @@ export const products = niraya.table(
 );
 
 /** Varian produk (mis. ukuran, rasa). */
-export const productVariants = niraya.table(
+export const productVariants = s.table(
   "ProductVariants",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -143,7 +143,7 @@ export const productVariants = niraya.table(
 );
 
 /** Satuan produk dan faktor konversinya. */
-export const productUnits = niraya.table(
+export const productUnits = s.table(
   "ProductUnits",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -171,7 +171,7 @@ export const productUnits = niraya.table(
 );
 
 /** Barcode tambahan per produk. */
-export const productBarcodes = niraya.table(
+export const productBarcodes = s.table(
   "ProductBarcodes",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -191,7 +191,7 @@ export const productBarcodes = niraya.table(
 );
 
 /** Harga produk per toko / tipe harga. */
-export const productPrices = niraya.table(
+export const productPrices = s.table(
   "ProductPrices",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

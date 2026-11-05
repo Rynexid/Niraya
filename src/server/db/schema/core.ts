@@ -11,17 +11,16 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { authSchema, nirayaSchema } from "./schema";
+import { coreSchema } from "./schema";
 
-const niraya = nirayaSchema;
-const auth = authSchema;
+const core = coreSchema;
 
 /**
  * Role aplikasi. `user` adalah role dasar; role operasional berada di atasnya.
  * Role disimpan sebagai lookup agar RBAC dapat dikelola tanpa mengubah tabel
  * profil pengguna.
  */
-export const roles = niraya.table(
+export const roles = core.table(
   "Roles",
   {
     code: text("Code").primaryKey(),
@@ -47,7 +46,7 @@ export const roles = niraya.table(
 );
 
 /** Permission granular untuk RBAC. */
-export const permissions = niraya.table(
+export const permissions = core.table(
   "Permissions",
   {
     code: text("Code").primaryKey(),
@@ -65,7 +64,7 @@ export const permissions = niraya.table(
 );
 
 /** Pemetaan many-to-many role ke permission. */
-export const rolePermissions = niraya.table(
+export const rolePermissions = core.table(
   "RolePermissions",
   {
     roleCode: text("RoleCode")
@@ -89,7 +88,7 @@ export const rolePermissions = niraya.table(
 );
 
 /** Entitas bisnis. Satu instalasi dapat memiliki satu atau banyak bisnis. */
-export const businesses = niraya.table(
+export const businesses = core.table(
   "Businesses",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -120,7 +119,7 @@ export const businesses = niraya.table(
 );
 
 /** Toko/outlet milik bisnis. */
-export const stores = niraya.table(
+export const stores = core.table(
   "Stores",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -149,11 +148,10 @@ export const stores = niraya.table(
   ]
 );
 
-/**
- * Profil aplikasi untuk identitas Neon Auth.
+/** Profil aplikasi untuk identitas Neon Auth.
  * `UserId` menyimpan id user Neon Auth; tidak ada password/credential di sini.
  */
-export const userProfiles = auth.table(
+export const userProfiles = core.table(
   "UserProfiles",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -180,7 +178,7 @@ export const userProfiles = auth.table(
 );
 
 /** Keanggotaan user pada bisnis, dengan role dan akses toko opsional. */
-export const businessMembers = niraya.table(
+export const businessMembers = core.table(
   "BusinessMembers",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

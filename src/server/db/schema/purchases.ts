@@ -10,15 +10,15 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, purchasesSchema } from "./schema";
 import { businesses, stores } from "./core";
 import { products } from "./products";
 import { suppliers } from "./suppliers";
 
-const niraya = nirayaSchema;
+const s = purchasesSchema;
 
 /** Purchase order ke supplier. */
-export const purchaseOrders = niraya.table(
+export const purchaseOrders = s.table(
   "PurchaseOrders",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -74,7 +74,7 @@ export const purchaseOrders = niraya.table(
 );
 
 /** Baris purchase order. */
-export const purchaseOrderItems = niraya.table(
+export const purchaseOrderItems = s.table(
   "PurchaseOrderItems",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -118,7 +118,7 @@ export const purchaseOrderItems = niraya.table(
 );
 
 /** Penerimaan barang atas purchase order. */
-export const goodsReceipts = niraya.table(
+export const goodsReceipts = s.table(
   "GoodsReceipts",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -151,7 +151,7 @@ export const goodsReceipts = niraya.table(
 );
 
 /** Baris penerimaan barang; menghubungkan qty diterima ke item PO. */
-export const goodsReceiptItems = niraya.table(
+export const goodsReceiptItems = s.table(
   "GoodsReceiptItems",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

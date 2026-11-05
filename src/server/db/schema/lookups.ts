@@ -11,13 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, lookupsSchema } from "./schema";
 import { businesses } from "./core";
 
-const niraya = nirayaSchema;
+const s = lookupsSchema;
 
 /** Metode pembayaran yang tersedia di POS. */
-export const paymentMethods = niraya.table(
+export const paymentMethods = s.table(
   "PaymentMethods",
   {
     code: text("Code").primaryKey(),
@@ -39,7 +39,7 @@ export const paymentMethods = niraya.table(
 );
 
 /** Tarif pajak per bisnis. */
-export const taxRates = niraya.table(
+export const taxRates = s.table(
   "TaxRates",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -67,7 +67,7 @@ export const taxRates = niraya.table(
 );
 
 /** Diskon yang dapat diterapkan ke transaksi. */
-export const discounts = niraya.table(
+export const discounts = s.table(
   "Discounts",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
