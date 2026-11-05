@@ -11,16 +11,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, transactionsSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, DEFAULT_STORE_ID, coreSchema, transactionsSchema } from "./schema";
 import { businesses, stores } from "./core";
 import { customers } from "./customers";
 import { products, productVariants } from "./products";
 import { transactions } from "./transactions";
 
 const s = transactionsSchema;
+const core = coreSchema;
 
 /** Meja/lokasi QR. Token disimpan sebagai hash; token mentah tidak disimpan. */
-export const diningTables = s.table(
+export const diningTables = core.table(
   "DiningTables",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -34,6 +35,7 @@ export const diningTables = s.table(
       .references(() => stores.id, { onDelete: "cascade" }),
     tableNumber: text("TableNumber"),
     name: text("Name"),
+    qrType: text("QrType").notNull().default("TABLE"),
     qrTokenHash: text("QrTokenHash").notNull(),
     isActive: boolean("IsActive").notNull().default(true),
     createdAt: timestamp("CreatedAt", { withTimezone: true }).defaultNow().notNull(),
@@ -45,6 +47,8 @@ export const diningTables = s.table(
     index("DiningTables_BusinessId_idx").on(t.businessId),
     index("DiningTables_StoreId_idx").on(t.storeId),
     index("DiningTables_IsActive_idx").on(t.isActive),
+    index("DiningTables_QrType_idx").on(t.qrType),
+    check("DiningTables_QrType_check", sql`${t.qrType} in ('TABLE','GENERAL')`),
   ]
 );
 

@@ -167,6 +167,7 @@ export const checkoutIdempotency = s.table(
     orderId: text("OrderId").references(() => orders.id, {
       onDelete: "set null",
     }),
+    scope: text("Scope"),
     response: text("Response"),
     createdAt: timestamp("CreatedAt", { withTimezone: true })
       .defaultNow()

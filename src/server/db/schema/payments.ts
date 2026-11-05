@@ -19,14 +19,17 @@ import { transactionItems, transactions } from "./transactions";
 
 const s = paymentsSchema;
 
-/** Pembayaran untuk transaksi; mendukung pembayaran bertahap dan order unified. */
+/** Pembayaran untuk transaksi; mendukung pembayaran bertahap dan order unified.
+ * QR/manual flow may create payment before legacy financial Transaction exists;
+ * POS Phase 7 always sets transactionId.
+ */
 export const payments = s.table(
   "Payments",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
-    transactionId: text("TransactionId")
-      .notNull()
-      .references(() => transactions.id, { onDelete: "cascade" }),
+    transactionId: text("TransactionId").references(() => transactions.id, {
+      onDelete: "cascade",
+    }),
     orderId: text("OrderId").references(() => orders.id, { onDelete: "set null" }),
     channel: text("Channel"),
     currency: text("Currency").notNull().default("IDR"),
@@ -45,7 +48,7 @@ export const payments = s.table(
     expiresAt: timestamp("ExpiresAt", { withTimezone: true }),
     metadata: jsonb("Metadata"),
     status: text("Status").notNull().default("completed"),
-    paidAt: timestamp("PaidAt", { withTimezone: true }).defaultNow().notNull(),
+    paidAt: timestamp("PaidAt", { withTimezone: true }),
     createdAt: timestamp("CreatedAt", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -58,7 +61,7 @@ export const payments = s.table(
     check("Payments_Amount_check", sql`${t.amount} >= 0`),
     check(
       "Payments_Status_check",
-      sql`${t.status} in ('pending', 'completed', 'failed', 'refunded', 'WAITING_PROOF', 'PENDING_VERIFICATION', 'PENDING_GATEWAY', 'PAID', 'REJECTED', 'EXPIRED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED')`,
+      sql`${t.status} in ('pending','completed','failed','refunded','expired','partially_refunded','UNPAID','PENDING','PAID','FAILED','EXPIRED','PARTIALLY_REFUNDED','REFUNDED','WAITING_PROOF','PENDING_VERIFICATION','REJECTED')`,
     ),
   ],
 );

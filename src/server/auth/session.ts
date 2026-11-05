@@ -153,6 +153,10 @@ export const ACTION_ROLES: Record<string, UserRole> = {
   "staff.delete": "owner",
   // Stok
   "stock.adjust": "manager",
+  // QR ordering
+  "qr.manage": "manager",
+  "qr.payment.verify": "manager",
+  "qr.order.manage": "cashier",
   // Transaksi
   "transaction.void": "manager",
   // Pengaturan
