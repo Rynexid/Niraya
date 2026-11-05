@@ -153,6 +153,8 @@ export const transactionItems = s.table(
   ]
 );
 
+import { orders } from "./orders";
+
 /** Idempotency key untuk checkout POS. */
 export const checkoutIdempotency = s.table(
   "CheckoutIdempotency",
@@ -160,6 +162,9 @@ export const checkoutIdempotency = s.table(
     key: text("Key").primaryKey(),
     requestHash: text("RequestHash").notNull(),
     transactionId: text("TransactionId").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    orderId: text("OrderId").references(() => orders.id, {
       onDelete: "set null",
     }),
     response: text("Response"),
@@ -170,6 +175,7 @@ export const checkoutIdempotency = s.table(
   },
   (t) => [
     index("CheckoutIdempotency_TransactionId_idx").on(t.transactionId),
+    index("CheckoutIdempotency_OrderId_idx").on(t.orderId),
     index("CheckoutIdempotency_ExpiresAt_idx").on(t.expiresAt),
   ]
 );

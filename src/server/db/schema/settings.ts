@@ -46,6 +46,20 @@ export const businessSettings = s.table(
      * migrasi. Sumber baru ada di `ReceiptSettings.Footer`.
      */
     legacyReceiptFooter: text("LegacyReceiptFooter").notNull().default(""),
+    qrOrderingEnabled: boolean("QrOrderingEnabled").notNull().default(false),
+    qrManualTransferEnabled: boolean("QrManualTransferEnabled")
+      .notNull()
+      .default(false),
+    manualTransferBankName: text("ManualTransferBankName"),
+    manualTransferAccountName: text("ManualTransferAccountName"),
+    manualTransferAccountNumber: text("ManualTransferAccountNumber"),
+    manualTransferInstructions: text("ManualTransferInstructions"),
+    reservationExpiryMinutes: integer("ReservationExpiryMinutes")
+      .notNull()
+      .default(30),
+    paymentGatewayModuleStatus: text("PaymentGatewayModuleStatus")
+      .notNull()
+      .default("NOT_INSTALLED"),
     createdAt: timestamp("CreatedAt", { withTimezone: true })
       .defaultNow()
       .notNull(),
