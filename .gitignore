@@ -46,3 +46,7 @@ drizzle/meta
 *.bak
 *.orig
 *~
+
+# docs/agent (local)
+AGENTS.md
+docs/
