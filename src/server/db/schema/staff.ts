@@ -10,16 +10,16 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, staffSchema } from "./schema";
 import { businesses, roles, stores } from "./core";
 
-const niraya = nirayaSchema;
+const s = staffSchema;
 
 /**
  * Data operasional staf. Kredensial tetap di Neon Auth; `UserId` hanya
  * menghubungkan staf ke identitas login jika ada.
  */
-export const staff = niraya.table(
+export const staff = s.table(
   "Staff",
   {
     id: text("Id").primaryKey(),
@@ -65,7 +65,7 @@ export const staff = niraya.table(
 );
 
 /** Shift kerja staf. */
-export const shifts = niraya.table(
+export const shifts = s.table(
   "Shifts",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -103,7 +103,7 @@ export const shifts = niraya.table(
 );
 
 /** Kasir fisik / titik pembayaran. */
-export const cashRegisters = niraya.table(
+export const cashRegisters = s.table(
   "CashRegisters",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -132,7 +132,7 @@ export const cashRegisters = niraya.table(
 );
 
 /** Sesi buka/tutup kasir. */
-export const cashRegisterSessions = niraya.table(
+export const cashRegisterSessions = s.table(
   "CashRegisterSessions",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -184,7 +184,7 @@ export const cashRegisterSessions = niraya.table(
 );
 
 /** Cash-in / cash-out di dalam sesi kasir. */
-export const cashMovements = niraya.table(
+export const cashMovements = s.table(
   "CashMovements",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

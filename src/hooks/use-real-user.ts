@@ -15,7 +15,7 @@ type SessionUser = NonNullable<RealUser>
 
 /**
  * Loads the signed-in Neon Auth user plus the app role from
- * `auth.user_profiles` (via `/api/me`). New accounts default to `user`.
+ * `core.UserProfiles` (via `/api/me`). New accounts default to `user`.
  */
 export function useRealUser(enabled: boolean) {
   const [user, setUser] = useState<RealUser>(null)

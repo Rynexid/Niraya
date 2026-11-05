@@ -9,13 +9,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, customersSchema } from "./schema";
 import { businesses } from "./core";
 
-const niraya = nirayaSchema;
+const s = customersSchema;
 
 /** Pelanggan milik bisnis. */
-export const customers = niraya.table(
+export const customers = s.table(
   "Customers",
   {
     id: text("Id").primaryKey(),
@@ -46,7 +46,7 @@ export const customers = niraya.table(
 );
 
 /** Alamat pelanggan (bisa lebih dari satu). */
-export const customerAddresses = niraya.table(
+export const customerAddresses = s.table(
   "CustomerAddresses",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

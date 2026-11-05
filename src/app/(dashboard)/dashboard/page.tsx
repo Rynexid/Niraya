@@ -1,9 +1,12 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import dynamic from "next/dynamic";
+import { getCurrentUserRole } from "@/server/auth/session";
 
-const PageComp = dynamic(() => import("@/features/dashboard/dashboard-page").then((m: any) => ({ default: m.DashboardPage })), { ssr: false });
+import { DashboardClientPage } from "./dashboard-client-page";
 
-export default function Page() {
-  return <PageComp />;
+export default async function Page() {
+  const role = await getCurrentUserRole();
+  if (role === "user") redirect("/profile");
+
+  return <DashboardClientPage />;
 }

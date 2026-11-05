@@ -19,7 +19,7 @@ Completed - Phase 4B implementation
 - Server config: src/server/auth/index.ts (createNeonAuth)
 - Client config: src/lib/auth-client.ts (createAuthClient)
 - Route handler: src/app/api/auth/[...path]/route.ts (authApiHandler)
-- Middleware: src/middleware.ts
+- Proxy: src/proxy.ts
 
 ## Auth UI
 - Login: src/app/(auth)/login/page.tsx (wired to authClient.signIn.email)

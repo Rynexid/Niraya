@@ -7,13 +7,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, suppliersSchema } from "./schema";
 import { businesses } from "./core";
 
-const niraya = nirayaSchema;
+const s = suppliersSchema;
 
 /** Pemasok barang. */
-export const suppliers = niraya.table(
+export const suppliers = s.table(
   "Suppliers",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

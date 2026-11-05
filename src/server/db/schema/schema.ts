@@ -3,20 +3,37 @@ import { pgSchema } from "drizzle-orm/pg-core";
 /**
  * Schema organisasi database NIRAYA POS.
  *
- * - `niraya` — seluruh tabel bisnis (PascalCase, dikelola aplikasi).
- * - `auth`   — tabel milik Neon Auth (lowercase, dikelola Neon Auth) dan
- *              `auth."UserProfiles"` yang menghubungkan identitas Neon Auth
- *              dengan role aplikasi.
+ * Domain schemas — tabel bisnis dipisah per domain untuk struktur yang lebih rapi.
  *
- * Catatan: tabel internal Neon Auth tidak boleh di-rename karena kontrak
- * service Neon Auth bergantung pada nama tersebut. Tabel aplikasi wajib
- * menggunakan PascalCase.
+ * Catatan: tabel aplikasi wajib menggunakan PascalCase.
  */
-export const DB_SCHEMA = "niraya";
-export const AUTH_SCHEMA = "auth";
+export const CORE_SCHEMA = "core";
+export const PRODUCTS_SCHEMA = "products";
+export const INVENTORY_SCHEMA = "inventory";
+export const CUSTOMERS_SCHEMA = "customers";
+export const STAFF_SCHEMA = "staff";
+export const SUPPLIERS_SCHEMA = "suppliers";
+export const PURCHASES_SCHEMA = "purchases";
+export const TRANSACTIONS_SCHEMA = "transactions";
+export const PAYMENTS_SCHEMA = "payments";
+export const LOOKUPS_SCHEMA = "lookups";
+export const SETTINGS_SCHEMA = "settings";
+export const AUDIT_SCHEMA = "audit";
+export const DEMO_SCHEMA = "demo";
 
-export const nirayaSchema = pgSchema(DB_SCHEMA);
-export const authSchema = pgSchema(AUTH_SCHEMA);
+export const coreSchema = pgSchema(CORE_SCHEMA);
+export const productsSchema = pgSchema(PRODUCTS_SCHEMA);
+export const inventorySchema = pgSchema(INVENTORY_SCHEMA);
+export const customersSchema = pgSchema(CUSTOMERS_SCHEMA);
+export const staffSchema = pgSchema(STAFF_SCHEMA);
+export const suppliersSchema = pgSchema(SUPPLIERS_SCHEMA);
+export const purchasesSchema = pgSchema(PURCHASES_SCHEMA);
+export const transactionsSchema = pgSchema(TRANSACTIONS_SCHEMA);
+export const paymentsSchema = pgSchema(PAYMENTS_SCHEMA);
+export const lookupsSchema = pgSchema(LOOKUPS_SCHEMA);
+export const settingsSchema = pgSchema(SETTINGS_SCHEMA);
+export const auditSchema = pgSchema(AUDIT_SCHEMA);
+export const demoSchema = pgSchema(DEMO_SCHEMA);
 
 /**
  * Identitas bisnis dan toko default untuk instalasi single-business.

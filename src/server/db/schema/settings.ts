@@ -11,13 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, settingsSchema } from "./schema";
 import { businesses, stores } from "./core";
 
-const niraya = nirayaSchema;
+const s = settingsSchema;
 
 /** Pengaturan tingkat bisnis. */
-export const businessSettings = niraya.table(
+export const businessSettings = s.table(
   "BusinessSettings",
   {
     id: text("Id").primaryKey().default("default"),
@@ -71,7 +71,7 @@ export const businessSettings = niraya.table(
 );
 
 /** Override pengaturan per toko. */
-export const storeSettings = niraya.table(
+export const storeSettings = s.table(
   "StoreSettings",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -106,7 +106,7 @@ export const storeSettings = niraya.table(
 );
 
 /** Konfigurasi struk / receipt. */
-export const receiptSettings = niraya.table(
+export const receiptSettings = s.table(
   "ReceiptSettings",
   {
     id: uuid("Id").defaultRandom().primaryKey(),

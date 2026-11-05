@@ -6,14 +6,15 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-import { DEFAULT_BUSINESS_ID, nirayaSchema } from "./schema";
+import { DEFAULT_BUSINESS_ID, auditSchema } from "./schema";
 import { businesses } from "./core";
 
-const niraya = nirayaSchema;
+const s = auditSchema;
 
 /** Notifikasi in-app per user. */
-export const notifications = niraya.table(
+export const notifications = s.table(
   "Notifications",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -39,7 +40,7 @@ export const notifications = niraya.table(
 );
 
 /** Audit trail tindakan administratif. */
-export const auditLogs = niraya.table(
+export const auditLogs = s.table(
   "AuditLogs",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
@@ -68,7 +69,7 @@ export const auditLogs = niraya.table(
 );
 
 /** Metadata file; isi file disimpan di object storage, bukan filesystem lokal. */
-export const fileAttachments = niraya.table(
+export const fileAttachments = s.table(
   "FileAttachments",
   {
     id: uuid("Id").defaultRandom().primaryKey(),
