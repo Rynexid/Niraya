@@ -3,6 +3,7 @@ import { z } from "zod";
 import { executeQrCheckout } from "@/server/qr/checkout";
 import { getClientIp, rateLimit, rateLimitResponse } from "@/server/security/rate-limit";
 import { getSession } from "@/lib/auth";
+import { guestCookieHeader } from "@/server/qr/guest-access";
 
 const Schema = z.object({
   qrToken: z.string().min(16).max(256),
@@ -27,7 +28,15 @@ export async function POST(request: Request) {
     ? { mode: "authenticated" as const, name: String(user.name || "Customer"), phone: String((user as any).phone || parsed.data.guest?.phone || ""), email: (user.email ?? null) as string|null, customerId: String(user.id) }
     : { mode: "guest" as const, name: parsed.data.guest?.name || "", phone: parsed.data.guest?.phone || "", email: (parsed.data.guest?.email ?? null) as string|null };
   try {
-    const result = await executeQrCheckout({ ...parsed.data, items: parsed.data.items.map(i=>({...i, notes: i.notes ?? undefined})), customer });
-    return NextResponse.json(result);
+    const result: any = await executeQrCheckout({ ...parsed.data, items: parsed.data.items.map(i=>({...i, notes: i.notes ?? undefined})), customer });
+    const raw = result._guestAccessRaw as string|undefined;
+    delete result._guestAccessRaw;
+    const res = NextResponse.json(result);
+    if (raw && result.orderId && result.guestAccess?.expiresAt) {
+      res.headers.append("Set-Cookie", guestCookieHeader(result.orderId, raw, new Date(result.guestAccess.expiresAt)));
+      // also include raw token once in response for clients that need it (not recommended for browsers); cookie is primary
+      res.headers.set("x-guest-access-delivery", "set-cookie");
+    }
+    return res;
   } catch (e: any) { return NextResponse.json({ error: e?.message || "Checkout gagal." }, { status: e?.status ?? 400 }); }
 }

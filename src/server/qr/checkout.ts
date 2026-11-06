@@ -19,6 +19,7 @@ import {
   taxRates,
 } from "@/server/db/schema";
 import { hashQrToken } from "@/server/qr/token";
+import { createGuestOrderAccess } from "@/server/qr/guest-access";
 
 export type QrCheckoutInput = {
   qrToken: string;
@@ -53,10 +54,19 @@ export async function getPublicCatalog() {
   }).from(products).where(and(eq(products.businessId, DEFAULT_BUSINESS_ID), eq(products.status, "active"), sql`${products.deletedAt} is null`));
   const ids = prods.map(p=>p.id);
   const vars = ids.length ? await db.select({ id: productVariants.id, productId: productVariants.productId, name: productVariants.name, sellingPrice: productVariants.sellingPrice, isActive: productVariants.isActive }).from(productVariants).where(and(eq(productVariants.businessId, DEFAULT_BUSINESS_ID), inArray(productVariants.productId, ids))) : [];
+  // reserved-aware availability for public catalog (best-effort, no internal counts exposed)
+  const invRows = ids.length ? await db.select({ productId: inventory.productId, stockQuantity: inventory.stockQuantity, reservedQuantity: inventory.reservedQuantity }).from(inventory).where(and(eq(inventory.storeId, DEFAULT_STORE_ID), inArray(inventory.productId, ids))) : [];
+  const invBy = new Map(invRows.map(r=>[r.productId,r]));
   const varsBy = new Map<string, any[]>(); for (const v of vars.filter(v=>v.isActive)) { const a=varsBy.get(v.productId)??[]; a.push({id:v.id,name:v.name,sellingPrice:v.sellingPrice?Number(v.sellingPrice):null}); varsBy.set(v.productId,a); }
   return {
     categories: cats.sort((a,b)=>(a.sortOrder-b.sortOrder)||a.name.localeCompare(b.name)),
-    products: prods.map(p=>({ id:p.id,name:p.name,description:p.description,categoryId:p.categoryId,sellingPrice:Number(p.sellingPrice),imageUrl:p.imageUrl,isTaxable:!!p.isTaxable,available: !p.isStockTracked || p.stockQuantity>0, variants: varsBy.get(p.id)??[] })),
+    products: prods.map(p=>{
+      const inv = invBy.get(p.id);
+      const onHand = inv?.stockQuantity ?? p.stockQuantity ?? 0;
+      const reserved = inv?.reservedQuantity ?? 0;
+      const available = !p.isStockTracked || Math.max(0, onHand - reserved) > 0;
+      return { id:p.id,name:p.name,description:p.description,categoryId:p.categoryId,sellingPrice:Number(p.sellingPrice),imageUrl:p.imageUrl,isTaxable:!!p.isTaxable,available, variants: varsBy.get(p.id)??[] };
+    }),
   };
 }
 
@@ -73,7 +83,7 @@ export async function executeQrCheckout(input: QrCheckoutInput) {
     const [existing] = await tx.select().from(checkoutIdempotency).where(eq(checkoutIdempotency.key, input.idempotencyKey)).limit(1);
     if (existing) {
       if (existing.requestHash !== requestHash) throw Object.assign(new Error("Idempotency key dipakai dengan payload berbeda."), { status: 409 });
-      if (existing.response) return JSON.parse(existing.response);
+      if (existing.response) return { ...(JSON.parse(existing.response) as any), idempotent: true };
     }
     const [settings] = await tx.select().from(businessSettings).where(eq(businessSettings.id,"default")).limit(1);
     if (!settings?.qrOrderingEnabled) throw Object.assign(new Error("QR ordering tidak aktif."), { status: 403 });
@@ -136,7 +146,7 @@ export async function executeQrCheckout(input: QrCheckoutInput) {
     } as any);
     await tx.insert(orderStatusHistory).values({ orderId, fromOrderStatus:null, toOrderStatus:"SUBMITTED", fromPaymentStatus:null, toPaymentStatus:"PENDING", changedByUserId: input.customer.mode==="authenticated"? (input.customer.customerId ?? null):null, changedByRole: input.customer.mode==="authenticated"?"customer":"guest", reason:"QR checkout submitted; awaiting manual transfer", createdAt: now } as any);
 
-    const response = {
+    const response: any = {
       orderId, orderNumber, orderSource, orderStatus:"SUBMITTED", paymentStatus:"PENDING", paymentId,
       qr: { type: qrType, tableNumber },
       customer: { mode: input.customer.mode, name: input.customer.name.trim(), phone: input.customer.phone.trim() },
@@ -145,8 +155,17 @@ export async function executeQrCheckout(input: QrCheckoutInput) {
       reservation: { expiresAt: expiresAt.toISOString() },
       payment: { method:"manual_transfer", status:"PENDING", instructions: { bankName: settings.manualTransferBankName, accountName: settings.manualTransferAccountName, accountNumber: settings.manualTransferAccountNumber, instructions: settings.manualTransferInstructions } },
     };
+    let guestAccess: { rawToken: string; expiresAt: Date } | null = null;
+    if (input.customer.mode === "guest") {
+      // create outside tx? createGuestOrderAccess uses db; safer inside same logical flow but uses global db.
+      // We'll insert directly via tx to keep atomicity.
+      const { createGuestAccessInTx } = await import("@/server/qr/guest-access");
+      guestAccess = await createGuestAccessInTx(tx, orderId);
+      response.guestAccess = { expiresAt: guestAccess.expiresAt.toISOString(), delivery: "cookie+response-once" };
+    }
     await tx.insert(checkoutIdempotency).values({ key: input.idempotencyKey, requestHash, transactionId: null, orderId, scope:"QR", response: JSON.stringify(response), createdAt: now, expiresAt } as any)
       .onConflictDoUpdate({ target: checkoutIdempotency.key, set: { orderId, scope:"QR", response: JSON.stringify(response) } as any });
+    if (guestAccess) response._guestAccessRaw = guestAccess.rawToken; // internal, stripped by route for idempotent cache safety? route sets cookie
     return response;
   });
 }

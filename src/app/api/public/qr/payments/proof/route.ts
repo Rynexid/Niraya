@@ -3,9 +3,10 @@ import { submitPaymentProof } from "@/server/qr/payments";
 import { storePaymentProof } from "@/server/storage/payment-proof";
 import { getClientIp, rateLimit, rateLimitResponse } from "@/server/security/rate-limit";
 import { db } from "@/server/db";
-import { orders } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { orders, payments } from "@/server/db/schema";
+import { and, eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
+import { getGuestTokenFromRequest, resolveGuestAccess } from "@/server/qr/guest-access";
 
 export async function POST(request: Request) {
   const ip = getClientIp(request); const rl = rateLimit(`qr:proof:${ip}`, { limit: 20, windowMs: 60_000 });
@@ -15,11 +16,17 @@ export async function POST(request: Request) {
   const referenceNumber = form.get("referenceNumber") ? String(form.get("referenceNumber")) : null;
   const file = form.get("file");
   if (!(file instanceof File) || !orderId || !paymentId) return NextResponse.json({ error: "Data bukti tidak valid." }, { status: 400 });
-  const session = await getSession().catch(()=>null); const user = (session as any)?.user ?? (session as any)?.data?.user;
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
-  if (!order) return NextResponse.json({ error: "Order tidak ditemukan." }, { status: 404 });
-  if (user?.id && order.customerId && String(order.customerId)!==String(user.id)) return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-  // Guest proof upload is limited: requires knowing orderId+paymentId; TODO: bind to guest order token/session for stronger control.
+  const [payment] = await db.select().from(payments).where(and(eq(payments.id, paymentId), eq(payments.orderId, orderId))).limit(1);
+  if (!order || !payment) return NextResponse.json({ error: "Akses tidak valid." }, { status: 403 });
+  const session = await getSession().catch(()=>null); const user = (session as any)?.user ?? (session as any)?.data?.user;
+  let authorized = false;
+  if (user?.id && order.customerId && String(order.customerId)===String(user.id)) authorized = true;
+  if (!authorized && !order.customerId) {
+    const access = await resolveGuestAccess(orderId, getGuestTokenFromRequest(request, orderId));
+    if (access) authorized = true;
+  }
+  if (!authorized) return NextResponse.json({ error: "Akses tidak valid." }, { status: 403 });
   const bytes = new Uint8Array(await file.arrayBuffer());
   try {
     const stored = await storePaymentProof({ paymentId, contentType: file.type, bytes });
