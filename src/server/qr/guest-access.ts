@@ -46,6 +46,11 @@ export async function resolveGuestAccess(orderId: string, rawToken: string | nul
   return row;
 }
 
+export async function revokeGuestAccessByToken(orderId: string, rawToken: string) {
+  const hash = hashGuestToken(rawToken);
+  await db.update(guestOrderAccess).set({ revokedAt: new Date() } as any).where(and(eq(guestOrderAccess.orderId, orderId), eq(guestOrderAccess.tokenHash, hash), isNull(guestOrderAccess.revokedAt)));
+}
+
 export function guestCookieName(orderId: string) {
   const short = crypto.createHash("sha256").update(orderId).digest("base64url").slice(0, 16);
   return `niraya_goat_${short}`;

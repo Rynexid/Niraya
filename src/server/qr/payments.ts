@@ -67,10 +67,12 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
     if (String(order.orderStatus).toUpperCase() === "CANCELLED") throw Object.assign(new Error("Order sudah dibatalkan."), { status: 409 });
     if (orderPayStatus === "EXPIRED") throw Object.assign(new Error("Order sudah kedaluwarsa."), { status: 409 });
 
-    const resRows = await tx.select().from(inventoryReservations).where(eq(inventoryReservations.orderId, order.id)).for("update");
+    const resRows: any[] = await tx.select().from(inventoryReservations).where(eq(inventoryReservations.orderId, order.id)).for("update");
     const reserved = resRows.filter((r: any) => r.status === "RESERVED");
-    const allConverted = resRows.length > 0 && resRows.every((r: any) => r.status === "CONVERTED");
-    if (reserved.length === 0 && !allConverted && resRows.length > 0) throw Object.assign(new Error("Reservasi tidak valid untuk disetujui."), { status: 409 });
+    const converted = resRows.filter((r: any) => r.status === "CONVERTED");
+    const invalid = resRows.find((r: any) => ["RELEASED","EXPIRED","CANCELLED"].includes(String(r.status)));
+    if (invalid) throw Object.assign(new Error("Reservasi tidak valid untuk disetujui."), { status: 409 });
+    if (reserved.length === 0 && converted.length === 0) throw Object.assign(new Error("Reservasi tidak ditemukan."), { status: 409 });
     if (reserved.some((r: any) => r.expiresAt && new Date(r.expiresAt).getTime() <= now.getTime())) {
       throw Object.assign(new Error("Reservasi sudah kedaluwarsa."), { status: 409 });
     }
@@ -79,10 +81,16 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
     if (String(payment.currency || "IDR") !== String(order.currency || "IDR")) throw Object.assign(new Error("Currency pembayaran tidak sesuai."), { status: 400 });
     if (roundMoney(Number(payment.amount)) !== roundMoney(Number(order.grandTotal))) throw Object.assign(new Error("Jumlah pembayaran tidak sesuai total order."), { status: 400 });
 
-    // If already has transaction linked (defensive idempotency), do not create duplicates
-    if (payment.transactionId) {
-      await tx.update(payments).set({ status: "PAID", verifiedByUserId: input.staffUserId, verifiedAt: now, verificationNote: input.note || null, paidAt: now } as any).where(eq(payments.id, payment.id));
-      return { ok: true, idempotent: true, status: "PAID", transactionId: payment.transactionId };
+    // Defensive idempotency: linked/created tx already exists
+    if (payment.transactionId || order.linkedTransactionId) {
+      const txId = payment.transactionId || order.linkedTransactionId;
+      await tx.update(payments).set({ status: "PAID", transactionId: txId, verifiedByUserId: input.staffUserId, verifiedAt: now, verificationNote: input.note || null, paidAt: now } as any).where(eq(payments.id, payment.id));
+      await tx.update(orders).set({ paymentStatus: "PAID", paidAt: order.paidAt || now, linkedTransactionId: txId, updatedAt: now }).where(eq(orders.id, order.id));
+      return { ok: true, idempotent: true, status: "PAID", transactionId: txId };
+    }
+    if (reserved.length === 0 && converted.length > 0) {
+      // Converted without linked tx should not silently succeed; keep strict.
+      throw Object.assign(new Error("Status fulfillment tidak konsisten."), { status: 409 });
     }
 
     const transactionId = crypto.randomUUID();

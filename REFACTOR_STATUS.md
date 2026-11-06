@@ -44,3 +44,33 @@
 - **8G.3 Rate limiting:** `src/server/security/rate-limit.ts` remains in-memory fixed-window fallback (dev/single instance). **Not distributed-safe on Vercel serverless**; needs Upstash/Redis provider config before claiming production protection. Limitation documented.
 - **8G.4 Proof storage:** Local `.data/payment-proofs` boundary only for development (not durable on Vercel). Authz required to read proofs; guest proof upload now requires guest access token or authenticated owner. Still needs signature validation, durable private S3-compatible object storage, stronger CSRF/origin policy for cookie-based guest flows.
 - **Tests (dev DB `niraya-refactor-dev`):** `bun run typecheck` ✅, `bun run build` ✅, targeted regression ✅ `bun test src/server/qr/phase8g.test.ts src/server/qr/phase8.test.ts src/server/pos/checkout-phase7.test.ts --timeout 30000` — **9 pass, 0 fail, 89 expect**. Covers guest token hash/no plaintext/valid/invalid/wrong-order, QR fulfillment tx/items/payment link/reservation conversion/stock+reserved deduction/stock movement/idempotent duplicate approval, expired reject/approve rejection. **Not tested:** full 8G matrix (revoked/expired token cases, authenticated-other-customer IDOR, wrong amount/currency, cancelled order, unauthorized staff route, concurrent approvals/orders, rollback simulation, proof file signature, rate-limit provider behavior, CSRF same-origin).
+
+
+## Phase 8G.5–8G.7 hardening pass (dev only, additive-safe) — PARTIAL
+- **DB target verified:** all writes/tests against `niraya-refactor-dev` (`br-lucky-boat-aoovo9ev`, DB `Niraya`, pooler host). No production branch access/mutation.
+- **Guest access (8G.5/8G.7):** raw 256-bit token never stored (SHA-256 hash only), scoped to order, expiry+revocation checked (`resolveGuestAccess`), revoke helper added. Per-order HttpOnly/SameSite cookie (`niraya_goat_*`, Secure in prod) avoids multi-order overwrite. Public proof upload and guest order status require valid guest token (cookie/bearer) or authenticated session owner; invalid access returns generic 403. Same-origin guard added for cookie-authenticated state-changing public QR endpoints (`src/server/qr/request-security.ts`).
+- **Fulfillment/accounting (8G.6):** approval uses advisory lock + row locks, validates PENDING/amount/currency/order not cancelled/expired, reservations RESERVED+unexpired, rejects RELEASED/EXPIRED/converted-inconsistent states, links existing tx defensively, creates at most 1 legacy Transaction + snapshot TransactionItems, converts reservations once, releases reserved qty, deducts on-hand once (inventory+products cache), records 1 stock movement, idempotent duplicate/concurrent approval path returns consistent result.
+- **Proof storage (8G.7):** local private dev boundary only; added file signature sniffing (JPEG/PNG/WebP/PDF), size/type rejection, path traversal guard retained. **Not Vercel durable**; needs private S3-compatible object storage + authz/signed access policy.
+- **Rate limiting:** in-memory fallback only; **not production/distributed safe** on Vercel. Needs Redis/Upstash provider.
+- **Migrations:** no new migration added in this pass (uses `0004_guest_order_access.sql` already applied on dev).
+
+### Test results (dev DB)
+- `bun run typecheck` ✅
+- `bun run build` ✅
+- `bun test src/server/qr/phase8g.test.ts --timeout 30000` ✅ **11 pass, 0 fail, 72 expect**
+- `bun test src/server/qr/phase8.test.ts` ✅ (part of prior targeted run)
+- `bun test src/server/pos/checkout-phase7.test.ts` ✅ (part of prior targeted run)
+- Combined targeted regression run: ✅ **15 pass, 0 fail, 118 expect** (`phase8g`+`phase8`+Phase 7)
+
+### Security/concurrency matrix status
+- **Tested (automated, DB-backed):** guest token hash/no plaintext/valid/invalid/missing/wrong-order/revoked/expired; idempotent checkout retry does not re-expose raw guest token; multi-order token independence/no transfer; fulfillment creates 1 tx/items/payment link/reservation conversion/stock+reserved once/1 movement; duplicate approval idempotent; concurrent approvals produce 1 fulfillment effect; amount/currency mismatch rejected; expired/cancelled approval rejected; reject not PAID; proof spoofed signature/oversized rejected; competing checkouts on limited stock do not oversell/reserve negative.
+- **Partially tested / needs API-level tests:** authenticated customer A vs B ownership/IDOR, request body `customerId` override ignored, missing/invalid session on auth customer orders, unauthorized staff verify/proof access (role guard exists but not explicitly asserted in new tests), CSRF/origin behavior in browser context.
+- **Not tested:** real database-failure rollback simulation at each fulfillment step (requires fault injection/transaction hook; would be unsafe/speculative to fake), reservation already converted/released edge states beyond covered paths, currency mismatch end-to-end at schema enum boundaries, duplicate proof upload idempotency policy, distributed rate-limit behavior.
+
+### Remaining risks / production blockers
+- In-memory rate limiting not distributed (Vercel multi-instance bypass risk).
+- Local proof storage not durable/public-prod safe; file-signature sniffing is basic (not full malware/content scanning).
+- CSRF/origin guard is minimal for cookie flows; needs full same-site/cookie policy review, token rotation/revoke API UX, and browser integration tests.
+- Authenticated-customer order access depends on Neon session identity mapping to `order.customerId`; needs explicit IDOR tests.
+- Staff authorization relies on `requireRole`; fine-grained action permission tests needed.
+- No UI (8H). No refund workflow. No production migration/deploy.

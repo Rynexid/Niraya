@@ -4,6 +4,7 @@ import { executeQrCheckout } from "@/server/qr/checkout";
 import { getClientIp, rateLimit, rateLimitResponse } from "@/server/security/rate-limit";
 import { getSession } from "@/lib/auth";
 import { guestCookieHeader } from "@/server/qr/guest-access";
+import { assertSameOriginIfCookieAuth } from "@/server/qr/request-security";
 
 const Schema = z.object({
   qrToken: z.string().min(16).max(256),
@@ -16,6 +17,8 @@ const Schema = z.object({
   asAuthenticated: z.boolean().optional(),
 });
 export async function POST(request: Request) {
+  const origin = assertSameOriginIfCookieAuth(request);
+  if (!origin.ok) return NextResponse.json({ error: origin.error }, { status: origin.status });
   const ip = getClientIp(request); const rl = rateLimit(`qr:checkout:${ip}`, { limit: 15, windowMs: 60_000 });
   if (!rl.ok) return rateLimitResponse(rl.resetAt);
   const body = await request.json().catch(()=>null); const parsed = Schema.safeParse(body);

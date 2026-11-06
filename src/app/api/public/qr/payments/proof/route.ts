@@ -7,8 +7,11 @@ import { orders, payments } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { getGuestTokenFromRequest, resolveGuestAccess } from "@/server/qr/guest-access";
+import { assertSameOriginIfCookieAuth } from "@/server/qr/request-security";
 
 export async function POST(request: Request) {
+  const origin = assertSameOriginIfCookieAuth(request);
+  if (!origin.ok) return NextResponse.json({ error: origin.error }, { status: origin.status });
   const ip = getClientIp(request); const rl = rateLimit(`qr:proof:${ip}`, { limit: 20, windowMs: 60_000 });
   if (!rl.ok) return rateLimitResponse(rl.resetAt);
   const form = await request.formData();
