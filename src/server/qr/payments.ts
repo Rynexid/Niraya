@@ -37,7 +37,12 @@ export async function submitPaymentProof(input: { orderId: string; paymentId: st
   });
 }
 
-export async function verifyManualPayment(input: { paymentId: string; action: "approve"|"reject"; note?: string; staffUserId: string }) {
+export type VerifyManualPaymentOpts = { _faultAfter?: "tx_insert"|"items_insert"|"inventory_update"|"movement_insert"|"payment_update"|"order_update" };
+function maybeFault(opts: VerifyManualPaymentOpts|undefined, step: NonNullable<VerifyManualPaymentOpts["_faultAfter"]>) {
+  if (opts?._faultAfter === step) throw Object.assign(new Error(`TEST_FAULT_AFTER_${step}`), { status: 500, _testFault: true });
+}
+
+export async function verifyManualPayment(input: { paymentId: string; action: "approve"|"reject"; note?: string; staffUserId: string }, opts?: VerifyManualPaymentOpts) {
   return db.transaction(async (tx: any) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`pay:${input.paymentId}`}))`);
     const [payment] = await tx.select().from(payments).where(eq(payments.id, input.paymentId)).limit(1).for("update");
@@ -58,9 +63,7 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
       return { ok: true, status: "REJECTED" };
     }
 
-    // APPROVE
     if (payStatus === "PAID" || payment.status === "completed") {
-      // idempotent duplicate approval
       return { ok: true, idempotent: true, status: "PAID", transactionId: payment.transactionId || null };
     }
     if (["EXPIRED","FAILED","REFUNDED","PARTIALLY_REFUNDED"].includes(payStatus)) throw Object.assign(new Error("Pembayaran tidak dapat disetujui."), { status: 409 });
@@ -77,11 +80,9 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
       throw Object.assign(new Error("Reservasi sudah kedaluwarsa."), { status: 409 });
     }
 
-    // Validate amount/currency
     if (String(payment.currency || "IDR") !== String(order.currency || "IDR")) throw Object.assign(new Error("Currency pembayaran tidak sesuai."), { status: 400 });
     if (roundMoney(Number(payment.amount)) !== roundMoney(Number(order.grandTotal))) throw Object.assign(new Error("Jumlah pembayaran tidak sesuai total order."), { status: 400 });
 
-    // Defensive idempotency: linked/created tx already exists
     if (payment.transactionId || order.linkedTransactionId) {
       const txId = payment.transactionId || order.linkedTransactionId;
       await tx.update(payments).set({ status: "PAID", transactionId: txId, verifiedByUserId: input.staffUserId, verifiedAt: now, verificationNote: input.note || null, paidAt: now } as any).where(eq(payments.id, payment.id));
@@ -89,7 +90,6 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
       return { ok: true, idempotent: true, status: "PAID", transactionId: txId };
     }
     if (reserved.length === 0 && converted.length > 0) {
-      // Converted without linked tx should not silently succeed; keep strict.
       throw Object.assign(new Error("Status fulfillment tidak konsisten."), { status: 409 });
     }
 
@@ -102,51 +102,24 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
     const invRows: any[] = productIds.length ? await tx.select().from(inventory).where(and(eq(inventory.storeId, DEFAULT_STORE_ID), inArray(inventory.productId, productIds as any))).for("update") : [];
     const invBy = new Map(invRows.map((r:any)=>[r.productId,r]));
 
-    // Create legacy financial Transaction snapshot (QR fulfillment accounting)
     await tx.insert(transactions).values({
-      id: transactionId,
-      businessId: DEFAULT_BUSINESS_ID,
-      storeId: DEFAULT_STORE_ID,
-      transactionNumber,
-      cashierId: null,
-      cashierName: "QR Manual Verification",
-      customerId: order.customerId ?? null,
-      customerName: order.customerName ?? "Guest",
-      orderType: order.orderType || "dine-in",
-      tableNumber: order.tableNumber ?? null,
-      paymentMethod: "manual_transfer",
-      paymentStatus: "paid",
-      subtotal: String(order.subtotal),
-      discountTotal: String(order.discountTotal ?? "0.00"),
-      taxTotal: String(order.taxTotal ?? "0.00"),
-      grandTotal: String(order.grandTotal),
-      amountPaid: String(order.grandTotal),
-      changeAmount: "0.00",
-      status: "completed",
-      createdAt: now,
-      updatedAt: now,
+      id: transactionId, businessId: DEFAULT_BUSINESS_ID, storeId: DEFAULT_STORE_ID, transactionNumber,
+      cashierId: null, cashierName: "QR Manual Verification", customerId: order.customerId ?? null, customerName: order.customerName ?? "Guest",
+      orderType: order.orderType || "dine-in", tableNumber: order.tableNumber ?? null, paymentMethod: "manual_transfer", paymentStatus: "paid",
+      subtotal: String(order.subtotal), discountTotal: String(order.discountTotal ?? "0.00"), taxTotal: String(order.taxTotal ?? "0.00"),
+      grandTotal: String(order.grandTotal), amountPaid: String(order.grandTotal), changeAmount: "0.00", status: "completed", createdAt: now, updatedAt: now,
     } as any);
+    maybeFault(opts, "tx_insert");
 
     for (const oi of oiRows as any[]) {
       await tx.insert(transactionItems).values({
-        id: crypto.randomUUID(),
-        transactionId,
-        productId: oi.productId,
-        productVariantId: oi.productVariantId ?? null,
-        productName: oi.productName,
-        sku: oi.sku,
-        quantity: oi.quantity,
-        unitPrice: String(oi.unitPrice),
-        discountTotal: String(oi.discountTotal ?? "0.00"),
-        taxTotal: String(oi.taxTotal ?? "0.00"),
-        lineTotal: String(oi.subtotal ?? oi.unitPrice), // fallback; schema uses subtotal as line snapshot in orders
-        costPrice: String(pBy.get(oi.productId)?.costPrice ?? "0.00"),
-        notes: oi.notes ?? null,
-        createdAt: now,
+        id: crypto.randomUUID(), transactionId, productId: oi.productId, productVariantId: oi.productVariantId ?? null, productName: oi.productName, sku: oi.sku,
+        quantity: oi.quantity, unitPrice: String(oi.unitPrice), discountTotal: String(oi.discountTotal ?? "0.00"), taxTotal: String(oi.taxTotal ?? "0.00"),
+        lineTotal: String(oi.subtotal ?? oi.unitPrice), costPrice: String(pBy.get(oi.productId)?.costPrice ?? "0.00"), notes: oi.notes ?? null, createdAt: now,
       } as any);
     }
+    maybeFault(opts, "items_insert");
 
-    // Convert RESERVED reservations once; deduct on-hand once and release reserved.
     for (const r of reserved as any[]) {
       await tx.update(inventoryReservations).set({ status: "CONVERTED", convertedAt: now, updatedAt: now }).where(and(eq(inventoryReservations.id, r.id), eq(inventoryReservations.status, "RESERVED")));
       const inv = invBy.get(r.productId);
@@ -156,12 +129,13 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
         const newStock = Math.max(0, Number(inv.stockQuantity || 0) - Number(r.quantity));
         await tx.update(inventory).set({ reservedQuantity: newReserved, stockQuantity: newStock, updatedAt: now }).where(eq(inventory.id, inv.id));
         inv.reservedQuantity = newReserved; inv.stockQuantity = newStock;
+        maybeFault(opts, "inventory_update");
         await tx.insert(stockMovements).values({
-          id: crypto.randomUUID(), businessId: DEFAULT_BUSINESS_ID, storeId: DEFAULT_STORE_ID, productId: r.productId,
-          productName: product?.name || "Product", movementType: "sale", quantity: -Number(r.quantity), stockAfter: newStock,
-          unitCost: product?.costPrice ? String(product.costPrice) : null, note: `QR order ${order.orderNumber} verified`, staffName: "QR Verification",
-          referenceType: "qr_order_payment", referenceId: order.id, createdAt: now,
+          id: crypto.randomUUID(), businessId: DEFAULT_BUSINESS_ID, storeId: DEFAULT_STORE_ID, productId: r.productId, productName: product?.name || "Product",
+          movementType: "sale", quantity: -Number(r.quantity), stockAfter: newStock, unitCost: product?.costPrice ? String(product.costPrice) : null,
+          note: `QR order ${order.orderNumber} verified`, staffName: "QR Verification", referenceType: "qr_order_payment", referenceId: order.id, createdAt: now,
         } as any);
+        maybeFault(opts, "movement_insert");
       }
       if (product) {
         await tx.update(products).set({ stockQuantity: sql`greatest(0, ${products.stockQuantity} - ${r.quantity})`, updatedAt: now } as any).where(eq(products.id, r.productId));
@@ -169,7 +143,9 @@ export async function verifyManualPayment(input: { paymentId: string; action: "a
     }
 
     await tx.update(payments).set({ status: "PAID", transactionId, verifiedByUserId: input.staffUserId, verifiedAt: now, verificationNote: input.note || null, paidAt: now } as any).where(eq(payments.id, payment.id));
+    maybeFault(opts, "payment_update");
     await tx.update(orders).set({ paymentStatus: "PAID", paidAt: now, linkedTransactionId: order.linkedTransactionId || transactionId, updatedAt: now }).where(eq(orders.id, order.id));
+    maybeFault(opts, "order_update");
     await tx.insert(orderStatusHistory).values({ orderId: order.id, fromOrderStatus: order.orderStatus, toOrderStatus: order.orderStatus, fromPaymentStatus: order.paymentStatus, toPaymentStatus:"PAID", changedByUserId: input.staffUserId, changedByRole:"staff", reason: input.note||"Manual transfer verified (QR fulfillment finalized)", createdAt: now } as any);
 
     return { ok: true, status: "PAID", transactionId, transactionNumber };

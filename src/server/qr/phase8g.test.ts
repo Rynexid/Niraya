@@ -218,3 +218,38 @@ test("8G.6 concurrent approval requests: at most 1 transaction/fulfillment effec
     expect((await db.select().from(stockMovements).where(eq(stockMovements.referenceId,res.orderId))).length).toBe(1);
   } finally { await cleanup(res,pid,table.id,idem); }
 });
+
+
+test("8G.8.2 rollback: fault after inventory update leaves payment pending, no tx/movement, stock/reservation restored", async () => {
+  const { raw, table, pid } = await setup(); const idem=uid("g8rb"); let res:any;
+  try {
+    res = await executeQrCheckout({ qrToken: raw, idempotencyKey: idem, items:[{productId:pid,quantity:2}], paymentMethod:"manual_transfer", customer:{mode:"guest",name:"G",phone:"08"} });
+    let err:any; try { await verifyManualPayment({ paymentId: res.paymentId, action:"approve", staffUserId:"s" }, { _faultAfter:"inventory_update" } as any); } catch(e){err=e;}
+    expect(String(err?.message||"")).toContain("TEST_FAULT");
+    const [pay] = await db.select().from(payments).where(eq(payments.id,res.paymentId)).limit(1);
+    expect(String(pay.status).toUpperCase()).not.toBe("PAID"); expect(pay.transactionId).toBeFalsy();
+    const [ord] = await db.select().from(orders).where(eq(orders.id,res.orderId)).limit(1);
+    expect(String(ord.paymentStatus).toUpperCase()).not.toBe("PAID"); expect(ord.linkedTransactionId).toBeFalsy();
+    const txs = await db.select().from(transactions).where(eq(transactions.id, (pay as any).transactionId || "nope"));
+    expect(txs.length).toBe(0);
+    const moves = await db.select().from(stockMovements).where(eq(stockMovements.referenceId,res.orderId));
+    expect(moves.length).toBe(0);
+    const [inv] = await db.select().from(inventory).where(eq(inventory.productId,pid)).limit(1);
+    expect(inv.stockQuantity).toBe(10); expect(inv.reservedQuantity).toBe(2); // reservation still reserved
+    const rs = await db.select().from(inventoryReservations).where(eq(inventoryReservations.orderId,res.orderId));
+    expect(rs.every((r:any)=>r.status==="RESERVED")).toBe(true);
+  } finally { await cleanup(res,pid,table.id,idem); }
+});
+
+test("8G.8.2 rollback: fault after tx insert leaves no PAID/partial fulfillment", async () => {
+  const { raw, table, pid } = await setup(); const idem=uid("g8rb2"); let res:any;
+  try {
+    res = await executeQrCheckout({ qrToken: raw, idempotencyKey: idem, items:[{productId:pid,quantity:1}], paymentMethod:"manual_transfer", customer:{mode:"guest",name:"G",phone:"08"} });
+    let err:any; try { await verifyManualPayment({ paymentId: res.paymentId, action:"approve", staffUserId:"s" }, { _faultAfter:"tx_insert" } as any); } catch(e){err=e;}
+    expect(String(err?.message||"")).toContain("TEST_FAULT");
+    const [pay] = await db.select().from(payments).where(eq(payments.id,res.paymentId)).limit(1);
+    expect(String(pay.status).toUpperCase()).not.toBe("PAID");
+    const [inv] = await db.select().from(inventory).where(eq(inventory.productId,pid)).limit(1);
+    expect(inv.stockQuantity).toBe(10); expect(inv.reservedQuantity).toBe(1);
+  } finally { await cleanup(res,pid,table.id,idem); }
+});

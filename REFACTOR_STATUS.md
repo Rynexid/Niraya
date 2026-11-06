@@ -74,3 +74,47 @@
 - Authenticated-customer order access depends on Neon session identity mapping to `order.customerId`; needs explicit IDOR tests.
 - Staff authorization relies on `requireRole`; fine-grained action permission tests needed.
 - No UI (8H). No refund workflow. No production migration/deploy.
+
+## Phase 8G.8 Authorization, Rollback & Request Security Closure (dev only) — PARTIAL
+- **Commit context:** continued from `af5df3a` on `dev`. DB target confirmed: `niraya-refactor-dev` (`br-lucky-boat-aoovo9ev`, DB `Niraya`) for all DB-backed tests/writes; production untouched.
+- **Migrations:** none added/applied. No destructive SQL/reset/truncate/delete-existing-data.
+
+### 8G.8.1 API authorization / IDOR (route-level, mocked auth+session, real DB fixtures)
+- Added `src/server/qr/phase8g-api.test.ts` (uses `mock.module` for `@/lib/auth` and `@/server/auth/session`, invokes actual route handlers).
+- **Tested:** guest token for Order A cannot access Order B (`GET /api/public/qr/orders/[orderId]`) — 403; valid token for own order — 200. Authenticated customer A cannot access customer B order — 403; missing session cannot access authenticated (customer-owned) order — 403. Unauthorized staff (cashier role) cannot verify payments (`POST /api/staff/qr/payments/verify`) — 403 and cannot read private proof (`GET /api/staff/qr/payments/proof`) — 403; manager passes authz (proof may be 404 if absent). Customer A cannot upload proof for customer B’s payment (`POST /api/public/qr/payments/proof`) — 403.
+- **Request body `customerId` override:** public QR routes do not accept `customerId` as ownership authority; guest access uses order-scoped token, authenticated access uses Neon session user id vs `order.customerId`. No route-level test injects body `customerId` yet because endpoints don’t take it; documented as design-level mitigation.
+
+### 8G.8.2 DB rollback fault injection (real DB transactions)
+- Added controlled test fault hook in `verifyManualPayment` (`opts._faultAfter` for `tx_insert|items_insert|inventory_update|movement_insert|payment_update|order_update`; test-only, throws to force transaction rollback). No POS Phase 7 behavior change.
+- **Tested (real dev DB):** fault after `inventory_update` and after `tx_insert` → thrown `TEST_FAULT`; payment not PAID/no `transactionId`, order not PAID/no `linkedTransactionId`, no partial tx/movement persisted, `inventory.stockQuantity/reservedQuantity` and reservation `RESERVED` state restored as pre-fulfillment. **Verified rollback for exercised steps**.
+- **Not fully tested:** fault injection after every listed step in production code paths (payment/order update/history) and all item/reservation loop permutations; fault hook is test instrumentation (minimal risk). No claim of exhaustive rollback proof.
+
+### 8G.8.3 CSRF/cookie/request security
+- `src/server/qr/request-security.ts` minimal same-origin guard for cookie-authenticated state-changing public QR endpoints (checkout/proof). Allows non-cookie/non-browser-missing-origin cases (documented risk); rejects mismatched Origin/Host. Cookies remain HttpOnly, SameSite=Lax, per-order name `niraya_goat_*` (isolation), Secure in production.
+- **Tested:** `request-security.test.ts` — no cookie allows; cookie + matching origin/host allows; cookie + cross-origin rejects (403); cookie + missing origin allows (non-browser fallback, documented risk).
+- **Not fully browser-tested:** Referer fallback policy not implemented; cross-origin browser behavior, CSRF token defense, token rotation UX, and duplicate proof idempotency policy remain partial.
+
+### 8G.8.4 Cancellation & refund policy audit (documentation only)
+- **Current implementation:** QR orders can reach expired states via reservation expiry; manual approval rejects expired/cancelled orders; paid QR fulfillment creates legacy financial Transaction and stock movement; no automatic refund/restock workflow implemented.
+- **Proposed lifecycle (not implemented, requires approved plan):**
+  - *Unpaid/pending manual-transfer order cancellation:* allowed only before PAID; release RESERVED reservations, restore `reservedQuantity`, set payment/order non-PAID terminal/cancelled states, write history; no financial Transaction created.
+  - *Expired reservation:* current expiry releases reservation/reserved qty and marks expired; preserve history.
+  - *Paid order cancellation:* **never delete** paid order/payment/transaction; create explicit reversal/refund record and compensating stock movement only with approved policy/permission.
+  - *Full/partial refund:* separate refund entities/workflow, idempotent, authorized, linked to original payment/transaction; partial refunds must not assume full stock restoration.
+  - *Stock restoration:* never automatic on refund/cancellation without explicit policy (damaged/consumed goods); if restored, create compensating `stockMovements`/inventory updates atomically and auditable.
+  - *Financial history preservation:* immutable/auditable; use reversals/refunds, not destructive edits.
+- **No refund API/schema migration added.**
+
+### Regression results (dev DB)
+- `bun run typecheck` ✅
+- `bun run build` ✅
+- `bun test src/server/qr/request-security.test.ts src/server/qr/phase8g.test.ts src/server/qr/phase8g-api.test.ts src/server/qr/phase8.test.ts src/server/pos/checkout-phase7.test.ts --timeout 30000` ✅ **27 pass, 0 fail, 152 expect** (5 files)
+
+### Remaining production blockers
+- Distributed rate limiting (Redis/Upstash) required; in-memory unsafe on Vercel.
+- Durable private object storage for payment proofs (S3-compatible/private, signed access); local `.data` dev-only.
+- Full browser CSRF/origin/referrer policy and token rotation/revoke UX.
+- Complete API-level authz/IDOR coverage and staff permission assertions.
+- Exhaustive rollback/fault-injection coverage for all fulfillment steps and loop paths.
+- Approved cancellation/refund implementation plan (no speculative auto-restock).
+- UI Phase 8H not started. No production migration/deploy.
